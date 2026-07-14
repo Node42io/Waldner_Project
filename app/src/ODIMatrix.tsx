@@ -195,9 +195,11 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
   const [searchParams] = useSearchParams()
   const [stk, setStk] = useState<string[]>(() => initialStk ?? searchParams.getAll('stk'))
   const [job, setJob] = useState<string[]>([])
+  const [jobType, setJobType] = useState<string[]>([])
   const toggleIn = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
   const toggleStk = (v: string) => setStk((p) => toggleIn(p, v))
   const toggleJob = (v: string) => setJob((p) => toggleIn(p, v))
+  const toggleJobType = (v: string) => setJobType((p) => toggleIn(p, v))
   const [query, setQuery] = useState<string>('')
   const [view, setView] = useState<'table' | 'graph'>(() => (searchParams.get('view') === 'graph' ? 'graph' : 'table'))
   // Importance × satisfaction rectangle deep-link (from the ODI viz playground):
@@ -238,16 +240,24 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
     [data],
   )
 
+  // Unique job types (core · product · emotional · status) for the Job Type filter.
+  const jobTypeOptions = useMemo(
+    () => Array.from(new Set(data.rows.map((r) => r.job_type).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [data],
+  )
+  const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+
   const list = useMemo(() => {
     const q = query.trim().toLowerCase()
     return data.rows.filter(
       (r) =>
         (stk.length === 0 || stk.includes(r.stk)) &&
         (job.length === 0 || job.includes(r.source_job)) &&
+        (jobType.length === 0 || jobType.includes(r.job_type)) &&
         (range == null || (r.imp >= range.impMin && (r.imp < range.impMax || range.impMax === 10) && r.sat >= range.satMin && (r.sat < range.satMax || range.satMax === 10))) &&
         (q === '' || r.stmt.toLowerCase().includes(q) || (r.plain ?? '').toLowerCase().includes(q) || r.source_job.toLowerCase().includes(q) || r.stk.toLowerCase().includes(q)),
     )
-  }, [data, stk, job, query, range])
+  }, [data, stk, job, jobType, query, range])
 
   // Points for the kit OpportunityMatrix: each row plotted at x = importance,
   // y = satisfaction (its other ODI fields ride along for the tooltip/table).
@@ -401,8 +411,19 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
                 options={jobOptions.map((j) => ({ value: j, label: j }))}
               />
             ))}
-            {stk.length > 0 || job.length > 0 || query || range ? (
-              <Button variant="tertiary" size="sm" onClick={() => { setStk([]); setJob([]); setQuery(''); setRange(null) }}>
+            {jobTypeOptions.length > 1 ? field('Job type', (
+              <Dropdown
+                size="sm"
+                multiple
+                ariaLabel="Filter by job type"
+                placeholder="All job types"
+                values={jobType}
+                onToggle={toggleJobType}
+                options={jobTypeOptions.map((t) => ({ value: t, label: titleCase(t) }))}
+              />
+            )) : null}
+            {stk.length > 0 || job.length > 0 || jobType.length > 0 || query || range ? (
+              <Button variant="tertiary" size="sm" onClick={() => { setStk([]); setJob([]); setJobType([]); setQuery(''); setRange(null) }}>
                 Clear all
               </Button>
             ) : null}
@@ -438,7 +459,7 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
 
         {/* Active filter chips: one closable neutral badge per selected value.
             A darker surface + hairline border lifts the grey chip off the card. */}
-        {stk.length > 0 || job.length > 0 || range ? (
+        {stk.length > 0 || job.length > 0 || jobType.length > 0 || range ? (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-200)', alignItems: 'center' }}>
             {range ? (
               <Badge key="range" variant="neutral" size="sm" style={chipStyle} onClose={() => setRange(null)} closeLabel="Remove importance/satisfaction filter">
@@ -453,6 +474,11 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
             {job.map((v) => (
               <Badge key={`job-${v}`} variant="neutral" size="sm" style={chipStyle} onClose={() => toggleJob(v)} closeLabel={`Remove ${v}`}>
                 {v}
+              </Badge>
+            ))}
+            {jobType.map((v) => (
+              <Badge key={`jt-${v}`} variant="neutral" size="sm" style={chipStyle} onClose={() => toggleJobType(v)} closeLabel={`Remove ${titleCase(v)}`}>
+                {titleCase(v)}
               </Badge>
             ))}
           </div>
