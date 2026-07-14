@@ -166,6 +166,9 @@ export function ValueNetworkModal({
               onNeeds={(stk, slug) => {
                 setNeedsStk(stk ? [stk] : []);
                 setNeedsSlug(slug ?? null);
+                // Clear immediately so the table never renders the previous
+                // unit's data against the new stakeholder filter (→ empty).
+                setNeedsData(null);
                 setShowNeeds(true);
               }}
               modal

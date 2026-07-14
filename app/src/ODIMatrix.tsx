@@ -526,7 +526,7 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
   const [expandAll, setExpandAll] = useState(false)
 
   // Stable id per need (index in the source array), for expand state.
-  const rowId = useMemo(() => new Map(data.rows.map((r, i) => [r, i] as const)), [])
+  const rowId = useMemo(() => new Map(data.rows.map((r, i) => [r, i] as const)), [data])
   const toggleRow = (id: number) =>
     setOpen((prev) => {
       const next = new Set(prev)
@@ -536,13 +536,13 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
 
   const orderedStakeholders = useMemo(
     () => ROLE_ORDER.flatMap((role) => data.stakeholders.filter((s) => s.role === role)),
-    [],
+    [data],
   )
 
   // Unique jobs for the Job filter dropdown.
   const jobOptions = useMemo(
     () => Array.from(new Set(data.rows.map((r) => r.source_job))).sort((a, b) => a.localeCompare(b)),
-    [],
+    [data],
   )
 
   const list = useMemo(() => {
@@ -554,7 +554,7 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
         (range == null || (r.imp >= range.impMin && (r.imp < range.impMax || range.impMax === 10) && r.sat >= range.satMin && (r.sat < range.satMax || range.satMax === 10))) &&
         (q === '' || r.stmt.toLowerCase().includes(q) || r.source_job.toLowerCase().includes(q) || r.stk.toLowerCase().includes(q)),
     )
-  }, [stk, job, query, range])
+  }, [data, stk, job, query, range])
 
   // Summary counts for the widget cards (over the full dataset).
   const stats = useMemo(() => {
@@ -567,7 +567,7 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
     const jobTypes: Record<string, number> = {}
     for (const t of jobType.values()) jobTypes[t] = (jobTypes[t] || 0) + 1
     return { status, roles, jobTypes, jobCount: jobType.size }
-  }, [])
+  }, [data])
 
   const rows = useMemo(() => {
     const val = (r: OdiRow): number | string => {
