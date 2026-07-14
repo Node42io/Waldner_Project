@@ -32,10 +32,10 @@ export function ReportSidebar() {
         onClick={() => navigate('/sales')}
       />
       <SidebarItem
-        label="Waldner PAS vs Brinox"
+        label="Value Network Coverage"
         icon={<GitDiff size={16} weight="regular" />}
-        selected={pathname === '/waldner-vs-brinox'}
-        onClick={() => navigate('/waldner-vs-brinox')}
+        selected={pathname === '/value-network-coverage'}
+        onClick={() => navigate('/value-network-coverage')}
       />
     </>
   )

@@ -180,6 +180,14 @@ export type { NaicsRowProps, NaicsRowSize } from "./components/NaicsRow/NaicsRow
 export { FieldLabel } from "./components/FieldLabel/FieldLabel";
 export type { FieldLabelProps } from "./components/FieldLabel/FieldLabel";
 
+export { OpportunityMatrix } from "./components/OpportunityMatrix/OpportunityMatrix";
+export type {
+  OpportunityMatrixProps,
+  MatrixPoint,
+  MatrixColumn,
+  MatrixQuadrant,
+  MatrixIsoLine,
+} from "./components/OpportunityMatrix/OpportunityMatrix";
 export { Table } from "./components/Table/Table";
 export type {
   TableProps,

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Briefcase, CaretDown, DownloadSimple, Eye, ListChecks, Megaphone, Rows, ShoppingCart, SquaresFour, Target, Users, Wrench, X } from '@phosphor-icons/react'
+import { Briefcase, CaretDown, DownloadSimple, Eye, ListChecks, Megaphone, Rows, ShoppingCart, SquaresFour, Target, Users, Wrench } from '@phosphor-icons/react'
 import {
   BackButton,
   Badge,
@@ -18,6 +18,7 @@ import {
   Text,
   Toggle,
   WidgetCard,
+  OpportunityMatrix,
 } from '@node42/ui-kit'
 import type { BadgeVariant } from '@node42/ui-kit'
 import { odiNeeds } from './odiNeedsData'
@@ -175,327 +176,6 @@ function ViewToggle({ value, onChange }: { value: 'table' | 'graph'; onChange: (
   )
 }
 
-// --- Opportunity landscape (Importance × Satisfaction scatter) ----------------
-// Each ODI outcome plotted at (importance, satisfaction). Dot colour encodes the
-// stakeholder role that holds the need; the diagonal iso-opp lines (opp = imp +
-// max(imp−sat, 0)) at 10/12/15 still mark the opportunity bands. Heavy coordinate
-// overlap (up to 14 outcomes share a point) is spread with a deterministic jitter.
-
-// Stakeholder role → dot colour (+ legend label). The four ODI stakeholder roles
-// each get a distinct hue so the scatter reads by who holds the need.
-const ROLE_META: { role: string; label: string; color: string }[] = [
-  { role: 'job_executor', label: 'Job executor', color: 'var(--light-blue-default)' },
-  { role: 'job_overseer', label: 'Job overseer', color: 'var(--green-default)' },
-  { role: 'job_influencer', label: 'Job influencer', color: 'var(--yellow-default)' },
-  { role: 'purchase_influencer', label: 'Purchase influencer', color: 'var(--orange-default)' },
-  { role: 'purchase_executor', label: 'Purchase executor', color: 'var(--red-default)' },
-]
-const ROLE_COLOR: Record<string, string> = Object.fromEntries(ROLE_META.map((m) => [m.role, m.color]))
-function roleColor(role: string): string {
-  return ROLE_COLOR[role] ?? 'var(--icon-subtle)'
-}
-// Deterministic 0..1 hash of a string (FNV-1a), for stable per-point jitter.
-function jhash(s: string): number {
-  let h = 2166136261
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) }
-  return (h >>> 0) / 4294967295
-}
-
-// Clicked-point detail panel beside the graph — the same fields as a table row
-// plus its importance/satisfaction rationale. Empty when nothing is selected.
-function GraphDetailPanel({ r, onClose }: { r: OdiRow | null; onClose: () => void }) {
-  const wrap: CSSProperties = {
-    flexShrink: 0, width: 320, maxWidth: '100%',
-    alignSelf: 'stretch', maxHeight: 'min(80vh, 640px)', overflowY: 'auto',
-    display: 'flex', flexDirection: 'column', gap: 'var(--space-300)',
-    padding: 'var(--space-400)', borderRadius: 'var(--radius-md)',
-    background: 'var(--surface-default-default-2)',
-  }
-  if (!r) {
-    return (
-      <div style={{ ...wrap, minHeight: 220, alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-        <Text variant="b3" style={{ color: 'var(--text-description)' }}>Click a point to see its outcome details.</Text>
-      </div>
-    )
-  }
-  const conf = meanConf(r)
-  const divider = <div aria-hidden style={{ height: 1, background: 'var(--border-card)', margin: 'var(--space-100) 0' }} />
-  // A metric row: caption on the left, mono value + band badge on the right.
-  const metric = (label: string, value: string, badge: ReactNode) => (
-    <>
-      <FieldLabel>{label}</FieldLabel>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-200)', justifyContent: 'flex-end' }}>
-        <span style={{ ...mono, fontSize: 'var(--font-size-b1)', color: 'var(--text-headings)' }}>{value}</span>
-        {badge}
-      </div>
-    </>
-  )
-  // A rationale block: caption + toned-down text, no card — the blocks are split
-  // by a hairline divider instead.
-  const rationale = (label: string, text: string) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-100)' }}>
-      <FieldLabel>{label}</FieldLabel>
-      <Text variant="b3" style={{ color: 'var(--text-description)' }}>{text}</Text>
-    </div>
-  )
-  return (
-    <div style={wrap}>
-      {/* Title = the need — the dot represents this desired outcome. Close top-right. */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-200)' }}>
-        <Text variant="b1" weight="medium" as="h3" style={{ margin: 0, flex: 1, minWidth: 0, color: 'var(--text-headings)' }}>{r.stmt}</Text>
-        <button type="button" onClick={onClose} aria-label="Close" style={{ flexShrink: 0, display: 'grid', placeItems: 'center', width: 'var(--space-600)', height: 'var(--space-600)', border: 0, borderRadius: 'var(--radius-xs)', background: 'transparent', color: 'var(--icon-description)', cursor: 'pointer' }}>
-          <X size={18} />
-        </button>
-      </div>
-      {/* Values: satisfaction · importance · opportunity · confidence level */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 'var(--space-300)', rowGap: 'var(--space-200)', alignItems: 'center' }}>
-        {metric('Satisfaction', r.sat.toFixed(1), <Badge variant={satVariant(r.sat_band)} size="xs">{r.sat_band}</Badge>)}
-        {metric('Importance', r.imp.toFixed(1), <Badge variant={impVariant(r.imp_band)} size="xs">{r.imp_band}</Badge>)}
-        {metric('Opportunity', r.opp.toFixed(1), <Badge variant={oppVariant(r.opp)} size="xs">{oppWord(r.opp)}</Badge>)}
-        <FieldLabel>Confidence</FieldLabel>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}><ConfidenceBadge value={conf} size="xs" /></div>
-      </div>
-      {/* Stakeholder type + precise name */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 'var(--space-100)' }}>
-        <Badge variant="neutral" size="xs">{r.role_label}</Badge>
-        <Text variant="b2" weight="medium" as="span" style={{ color: 'var(--text-headings)' }}>{r.stk}</Text>
-      </div>
-      {/* Job */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-100)' }}>
-        <FieldLabel>Job</FieldLabel>
-        <Text variant="b2" style={{ color: 'var(--text-body)' }}>{r.source_job}</Text>
-      </div>
-      {/* Rationales — plain text, divider-separated (not in cards) */}
-      {divider}
-      {rationale('Importance rationale', r.imp_rat)}
-      {divider}
-      {rationale('Satisfaction rationale', r.sat_rat)}
-    </div>
-  )
-}
-
-// Static importance × satisfaction landscape. The plot is a fixed 0–10 board:
-// a 10×10 dashed light-neutral grid, the five qualitative bands labelled on each
-// axis, and the high-opportunity corner (bottom-right — high importance, low
-// satisfaction) shaded into three nested iso-opp areas (opp ≥ 10 / 12 / 15).
-// Needs are jittered bubbles laid on top; no zoom / drill-down.
-
-function OpportunityGraph({ rows }: { rows: OdiRow[] }) {
-  const [hover, setHover] = useState<number | null>(null)
-  // Clicked point → shown in the side panel. Cleared when the filtered set changes.
-  const [selected, setSelected] = useState<number | null>(null)
-  useEffect(() => { setSelected(null) }, [rows])
-  // Raw cursor position (viewBox coords) for the crosshair.
-  const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null)
-  // viewBox geometry — sized so the Needs card (title + graph) fills a viewport;
-  // the stat cards above may scroll off.
-  const VBW = 1000, VBH = 640
-  const padL = 92, padR = 48, padT = 18, padB = 66
-  const plotW = VBW - padL - padR
-  const plotH = VBH - padT - padB
-  // Fixed 0–10 domain on both axes (no zoom).
-  const xOf = (imp: number) => padL + (imp / 10) * plotW
-  const yOf = (sat: number) => padT + (1 - sat / 10) * plotH
-  // 10×10 board: dashed light-neutral gridlines at every integer unit (0–10).
-  const gridTicks = Array.from({ length: 11 }, (_, i) => i)
-  // Five qualitative bands over the 0–10 scale, labelled at each band's centre.
-  const bands = [
-    { c: 1, label: 'very low' },
-    { c: 3, label: 'low' },
-    { c: 5, label: 'medium' },
-    { c: 7, label: 'high' },
-    { c: 9, label: 'very high' },
-  ]
-
-  const pts = useMemo(
-    () => rows.map((r, i) => {
-      const key = `${r.stk}|${r.source_job}|${r.stmt}`
-      const jx = (jhash(key) - 0.5) * 30
-      const jy = (jhash(key + '#y') - 0.5) * 34
-      const rad = 6 + ((Math.min(15, Math.max(5, r.opp)) - 5) / 10) * 6
-      // Clamp the jittered centre to the plot rectangle so no dot spills past the axes.
-      const cx = Math.max(padL + rad, Math.min(padL + plotW - rad, xOf(r.imp) + jx))
-      const cy = Math.max(padT + rad, Math.min(padT + plotH - rad, yOf(r.sat) + jy))
-      return { i, r, cx, cy, rad, color: roleColor(r.role) }
-    }),
-    [rows],
-  )
-
-  // Three nested opportunity areas in the bottom-right corner. Each iso-opp line
-  // is sat = 2·imp − C, so the opp ≥ C region is the triangle (C/2,0)–(10,0)–
-  // (10,20−C). Drawn largest-first so the corner accumulates into a deeper wash;
-  // the higher the band the smaller the triangle and the hotter the hue.
-  const oppAreas = [
-    { c: 10, color: 'var(--yellow-default)', opacity: 0.06 },
-    { c: 12, color: 'var(--orange-default)', opacity: 0.07 },
-    { c: 15, color: 'var(--red-default)', opacity: 0.08 },
-  ]
-  // Neutral iso-opp guide lines on the area boundaries.
-  const isoLines = oppAreas.map((a) => ({ c: a.c, color: 'var(--text-description)' }))
-  const active = hover != null ? pts[hover] : null
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-200)', width: '100%' }}>
-      {rows.length === 0 ? (
-        <div style={{ padding: 'var(--space-800) 0', textAlign: 'center' }}>
-          <Text variant="b2" style={{ color: 'var(--text-description)' }}>No outcomes match the current filters.</Text>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', gap: 'var(--space-400)', alignItems: 'flex-start', width: '100%' }}>
-        <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-200)' }}>
-        {/* Legend — dot colour by stakeholder role. */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-300)', alignItems: 'center' }}>
-          {ROLE_META.map((m) => (
-            <span key={m.role} style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-100)' }}>
-              <span style={{ width: 10, height: 10, borderRadius: '50%', background: m.color, flexShrink: 0 }} />
-              <span style={{ fontFamily: 'var(--font-family-sans)', fontSize: 'var(--font-size-b4)', color: 'var(--text-description)' }}>{m.label}</span>
-            </span>
-          ))}
-        </div>
-        <div style={{ position: 'relative', width: '100%' }}>
-          <svg
-            viewBox={`0 0 ${VBW} ${VBH}`}
-            width="100%"
-            style={{ display: 'block', overflow: 'visible' }}
-            role="img"
-            aria-label={`Opportunity landscape scatter of ${rows.length} outcomes by importance and satisfaction`}
-            onMouseMove={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect()
-              setCursor({ x: ((e.clientX - rect.left) / rect.width) * VBW, y: ((e.clientY - rect.top) / rect.height) * VBH })
-            }}
-            onMouseLeave={() => { setCursor(null); setHover(null) }}
-          >
-            {/* High-opportunity corner: three nested iso-opp areas, visible under
-                the bubbles. Largest (opp ≥ 10) first so the corner deepens. */}
-            {oppAreas.map((a) => (
-              <polygon
-                key={`opp${a.c}`}
-                points={`${xOf(a.c / 2)},${yOf(0)} ${xOf(10)},${yOf(0)} ${xOf(10)},${yOf(20 - a.c)}`}
-                fill={a.color}
-                opacity={a.opacity}
-              />
-            ))}
-            {/* Grid — 10×10 dashed light-neutral board */}
-            {gridTicks.map((t) => (
-              <line key={`gx${t}`} x1={xOf(t)} y1={yOf(10)} x2={xOf(t)} y2={yOf(0)} stroke="var(--border-default-default-lighter)" strokeWidth={1} strokeDasharray="3 3" />
-            ))}
-            {gridTicks.map((t) => (
-              <line key={`gy${t}`} x1={xOf(0)} y1={yOf(t)} x2={xOf(10)} y2={yOf(t)} stroke="var(--border-default-default-lighter)" strokeWidth={1} strokeDasharray="3 3" />
-            ))}
-            {/* Band labels — plain Aeonik (sans) text, one per band on each axis. */}
-            {bands.map((b) => (
-              <text key={`bx${b.label}`} x={xOf(b.c)} y={yOf(0) + 18} textAnchor="middle" style={{ fontFamily: 'var(--font-family-sans)', fontSize: 'var(--font-size-b3)', fill: 'var(--text-description)' }}>{b.label}</text>
-            ))}
-            {bands.map((b) => (
-              <text key={`by${b.label}`} x={padL - 8} y={yOf(b.c) + 3.5} textAnchor="end" style={{ fontFamily: 'var(--font-family-sans)', fontSize: 'var(--font-size-b3)', fill: 'var(--text-description)' }}>{b.label}</text>
-            ))}
-            {/* Iso-opportunity lines: sat = 2·imp − C, from (C/2,0) to (10,20−C). */}
-            {isoLines.map((l) => (
-              <g key={`iso${l.c}`}>
-                <line x1={xOf(l.c / 2)} y1={yOf(0)} x2={xOf(10)} y2={yOf(20 - l.c)} stroke={l.color} strokeWidth={1.5} strokeDasharray="5 5" opacity={0.9} />
-                <text x={xOf(10) + 6} y={yOf(20 - l.c) + 4} textAnchor="start" style={{ ...mono, fontSize: 'var(--font-size-b3)', fill: l.color }}>opp {l.c}</text>
-              </g>
-            ))}
-            {/* Axis arrows — solid lines along the bottom (importance →) and left
-                (satisfaction ↑) with an arrowhead at each positive end. */}
-            <g stroke="var(--text-labels)" strokeWidth={1.5} fill="var(--text-labels)">
-              <line x1={xOf(0)} y1={yOf(0)} x2={xOf(10) + 14} y2={yOf(0)} />
-              <polygon points={`${xOf(10) + 22},${yOf(0)} ${xOf(10) + 12},${yOf(0) - 5} ${xOf(10) + 12},${yOf(0) + 5}`} stroke="none" />
-              <line x1={xOf(0)} y1={yOf(0)} x2={xOf(0)} y2={yOf(10) - 14} />
-              <polygon points={`${xOf(0)},${yOf(10) - 22} ${xOf(0) - 5},${yOf(10) - 12} ${xOf(0) + 5},${yOf(10) - 12}`} stroke="none" />
-            </g>
-            {/* Axis titles — colored badges. Importance along the bottom; Satisfaction
-                rotated up the left side. In foreignObject so they scale with the plot. */}
-            <g transform={`translate(${padL + plotW / 2}, ${VBH - 18})`}>
-              <foreignObject x={-100} y={-18} width={200} height={36} style={{ overflow: 'visible' }}>
-                <div style={{ display: 'flex', justifyContent: 'center' }}>
-                  <Badge variant="color" size="sm">Importance</Badge>
-                </div>
-              </foreignObject>
-            </g>
-            <g transform={`translate(22, ${padT + plotH / 2}) rotate(-90)`}>
-              <foreignObject x={-100} y={-18} width={200} height={36} style={{ overflow: 'visible' }}>
-                <div style={{ display: 'flex', justifyContent: 'center' }}>
-                  <Badge variant="color" size="sm">Satisfaction</Badge>
-                </div>
-              </foreignObject>
-            </g>
-            {/* Crosshair — dotted guides tracking the cursor over the plot */}
-            {cursor && cursor.x >= padL && cursor.x <= padL + plotW && cursor.y >= padT && cursor.y <= padT + plotH ? (
-              <g pointerEvents="none">
-                <line x1={cursor.x} y1={yOf(10)} x2={cursor.x} y2={yOf(0)} stroke="var(--text-description)" strokeWidth={1} strokeDasharray="3 3" opacity={0.55} />
-                <line x1={xOf(0)} y1={cursor.y} x2={xOf(10)} y2={cursor.y} stroke="var(--text-description)" strokeWidth={1} strokeDasharray="3 3" opacity={0.55} />
-              </g>
-            ) : null}
-            {/* Needs — jittered bubbles on top of the grid. */}
-            {pts.map((p) => (
-              <circle
-                key={p.i}
-                cx={p.cx}
-                cy={p.cy}
-                r={p.rad}
-                fill={p.color}
-                opacity={hover == null || hover === p.i ? 0.9 : 0.35}
-                stroke="var(--surface-default-default)"
-                strokeWidth={1.25}
-                style={{ cursor: 'pointer', transition: 'opacity 120ms ease' }}
-                onMouseEnter={() => setHover(p.i)}
-                onMouseLeave={() => setHover((h) => (h === p.i ? null : h))}
-                onClick={() => setSelected(p.i)}
-              />
-            ))}
-            {/* Selected point highlight (persistent) */}
-            {selected != null && pts[selected] ? (
-              <circle cx={pts[selected].cx} cy={pts[selected].cy} r={pts[selected].rad + 2.5} fill="none" stroke="var(--text-headings)" strokeWidth={2.5} pointerEvents="none" />
-            ) : null}
-            {/* Hovered point highlight on top */}
-            {active ? (
-              <circle cx={active.cx} cy={active.cy} r={active.rad + 1.5} fill="none" stroke="var(--text-body)" strokeWidth={2} pointerEvents="none" />
-            ) : null}
-          </svg>
-
-          {/* Tooltip — positioned by the point's fraction of the viewBox */}
-          {active ? (
-            <div
-              style={{
-                position: 'absolute',
-                left: `${(active.cx / VBW) * 100}%`,
-                top: `${(active.cy / VBH) * 100}%`,
-                transform: 'translate(-50%, calc(-100% - 10px))',
-                zIndex: 10,
-                pointerEvents: 'none',
-                width: 'min(280px, 70vw)',
-                padding: 'var(--space-300)',
-                background: 'var(--surface-default-default)',
-                border: '1px solid var(--border-default-default)',
-                borderRadius: 'var(--radius-md)',
-                boxShadow: 'var(--shadow-md)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--space-100)',
-              }}
-            >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-100)', minWidth: 0 }}>
-                <span style={{ width: 'var(--space-200)', height: 'var(--space-200)', borderRadius: '50%', background: active.color, flexShrink: 0 }} />
-                <Text variant="b3" weight="medium" as="span">{active.r.source_job}</Text>
-              </span>
-              <span style={{ fontFamily: 'var(--font-family-sans)', fontSize: 'var(--font-size-b4)', color: 'var(--text-description)' }}>{active.r.stk}</span>
-              <Text variant="b3" as="span" style={{ color: 'var(--text-body)' }}>{active.r.stmt}</Text>
-              <span style={{ display: 'flex', gap: 'var(--space-300)', marginTop: 'var(--space-50)' }}>
-                <span style={{ ...mono, fontSize: 'var(--font-size-b4)', color: 'var(--text-description)' }}>imp {active.r.imp.toFixed(1)}</span>
-                <span style={{ ...mono, fontSize: 'var(--font-size-b4)', color: 'var(--text-description)' }}>sat {active.r.sat.toFixed(1)}</span>
-                <span style={{ ...mono, fontSize: 'var(--font-size-b4)', color: 'var(--text-body)', fontWeight: 'var(--font-weight-medium)' }}>opp {active.r.opp.toFixed(1)}</span>
-              </span>
-            </div>
-          ) : null}
-        </div>
-        </div>
-        <GraphDetailPanel r={selected != null ? (pts[selected]?.r ?? null) : null} onClose={() => setSelected(null)} />
-        </div>
-      )}
-    </div>
-  )
-}
 
 // The ODI Needs body — summary cards + the search/filter/table "Needs" card.
 // Extracted from the page so the exact same needs table can be reused inside the
@@ -555,6 +235,10 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
         (q === '' || r.stmt.toLowerCase().includes(q) || r.source_job.toLowerCase().includes(q) || r.stk.toLowerCase().includes(q)),
     )
   }, [data, stk, job, query, range])
+
+  // Points for the kit OpportunityMatrix: each row plotted at x = importance,
+  // y = satisfaction (its other ODI fields ride along for the tooltip/table).
+  const graphPoints = useMemo(() => list.map((r) => ({ ...r, x: r.imp, y: r.sat })), [list])
 
   // Summary counts for the widget cards (over the full dataset).
   const stats = useMemo(() => {
@@ -755,8 +439,54 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
         ) : null}
 
         {view === 'graph' ? (
-          <div style={{ borderRadius: 'var(--radius-md)', background: 'var(--surface-default-default)', border: '1px solid var(--border-card)', padding: 'var(--space-400)' }}>
-            <OpportunityGraph rows={list} />
+          <div style={{ display: 'flex', height: 'min(72vh, 640px)', minHeight: 440, width: '100%' }}>
+          <OpportunityMatrix
+            points={graphPoints}
+            xLabel="Importance"
+            yLabel="Satisfaction"
+            noun={{ one: 'need', many: 'needs' }}
+            hint="Bubble size shows how many needs overlap · click a bubble or drag a region to list its needs."
+            isoLines={[
+              { c: 10, lines: ['Opp>10', 'Solid', 'Opportunity'] },
+              { c: 12, lines: ['Opp>12', 'High', 'Opportunity'] },
+              { c: 15, lines: ['Opp>15', 'Extreme', 'Opportunity'] },
+            ]}
+            boundaryLines={[{ x1: 0, y1: 1, x2: 9, y2: 10 }]}
+            quadrants={[
+              { x: 1.1, y: 9.2, label: 'Overserved', bg: 'var(--surface-default-error)', color: 'var(--text-error)' },
+              { x: 1.6, y: 1.2, label: 'Appropriately served', bg: 'var(--surface-default-warning)', color: 'var(--text-warning)' },
+              { x: 6.4, y: 0.7, label: 'Underserved', bg: 'var(--surface-default-success)', color: 'var(--text-success)' },
+            ]}
+            emptyHint="Click a bubble or drag a region on the matrix to list its needs here."
+            renderTooltip={(p) => (
+              <>
+                <Text variant="b3" weight="medium" as="span">{p.source_job}</Text>
+                <span style={{ fontFamily: 'var(--font-family-sans)', fontSize: 'var(--font-size-b4)', color: 'var(--text-description)' }}>{p.stk}</span>
+                <Text variant="b3" as="span" style={{ color: 'var(--text-body)' }}>{p.stmt}</Text>
+                <span style={{ display: 'flex', gap: 'var(--space-300)', marginTop: 'var(--space-50)' }}>
+                  <span style={{ ...mono, fontSize: 'var(--font-size-b4)', color: 'var(--text-description)' }}>imp {p.imp.toFixed(1)}</span>
+                  <span style={{ ...mono, fontSize: 'var(--font-size-b4)', color: 'var(--text-description)' }}>sat {p.sat.toFixed(1)}</span>
+                  <span style={{ ...mono, fontSize: 'var(--font-size-b4)', color: 'var(--text-body)', fontWeight: 'var(--font-weight-medium)' }}>opp {p.opp.toFixed(1)}</span>
+                </span>
+              </>
+            )}
+            columns={[
+              { header: 'Opp.', width: 78, nowrap: true, render: (p) => (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 'var(--space-50)' }}>
+                  <Badge variant={oppVariant(p.opp)} size="xs">{oppWord(p.opp)}</Badge>
+                  <span style={{ ...mono, fontSize: 'var(--font-size-b3)', color: 'var(--text-headings)' }}>{p.opp.toFixed(1)}</span>
+                </div>
+              ) },
+              { header: 'Stakeholder', width: '26%', render: (p) => (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span>{p.stk}</span>
+                  <span style={{ ...mono, fontSize: 'var(--font-size-b4)', color: 'var(--text-labels)' }}>{p.role_label}</span>
+                </div>
+              ) },
+              { header: 'Job', width: '22%', render: (p) => p.source_job },
+              { header: 'Need', render: (p) => p.stmt },
+            ]}
+          />
           </div>
         ) : (
         /* Table */
