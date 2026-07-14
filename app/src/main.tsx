@@ -13,6 +13,7 @@ import { lazy, Suspense } from 'react'
 import ODIMatrix from './ODIMatrix.tsx'
 import MarketPage from './MarketPage.tsx'
 import ProductManagementPage from './ProductManagementPage.tsx'
+import WaldnerVsBrinox from './WaldnerVsBrinox.tsx'
 import { GlossaryProvider } from './Glossary.tsx'
 
 // Lazy-loaded so the Sales page's extra weight (Leaflet, Tailwind utilities,
@@ -29,6 +30,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/odi-matrix" element={<ODIMatrix />} />
           <Route path="/product-management" element={<ProductManagementPage />} />
           <Route path="/market-page" element={<MarketPage />} />
+          <Route path="/waldner-vs-brinox" element={<WaldnerVsBrinox />} />
           <Route
             path="/sales"
             element={
