@@ -9,8 +9,8 @@ import { ODIMatrixView } from "../../../ODIMatrix";
  * Value Network modal — opened from the CompanyDrawer's "Open Value Network"
  * button. Reuses the exact same tree + detail view as the Market page
  * (ValueNetworkView), so it stays visually identical; here it runs in `modal`
- * mode, which pairs each buying-centre stakeholder with a named contact person
- * (fabricated demo identity + LinkedIn) and force-enables the node's Needs
+ * mode, which lists the account's REAL people (KeyPersons from Neo4j) under each
+ * buying-centre function and force-enables the node's Needs
  * button. Pressing Needs swaps the body for the ODI needs table (ODIMatrixView),
  * the very same table shown on the ODI Matrix page. Back returns to the network.
  *
@@ -19,9 +19,12 @@ import { ODIMatrixView } from "../../../ODIMatrix";
  */
 export function ValueNetworkModal({
   companyName,
+  peopleByFunction,
   onClose,
 }: {
   companyName: string;
+  /** Real buying-centre people for this company, keyed by stakeholder-role title. */
+  peopleByFunction?: Record<string, { name: string; role: string; location: string; linkedin: string; email: string }[]>;
   onClose: () => void;
 }) {
   const [showNeeds, setShowNeeds] = useState(false);
@@ -144,6 +147,7 @@ export function ValueNetworkModal({
                 setShowNeeds(true);
               }}
               modal
+              peopleByFunction={peopleByFunction}
             />
           )}
         </Scrollbar>

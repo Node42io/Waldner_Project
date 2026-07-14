@@ -213,6 +213,119 @@ def load_management():
     return by_co
 
 
+# Seniority ordering for ranking KeyPerson contacts (most senior first).
+SENIORITY_RANK = {
+    "CXO": 0, "Strategic": 1, "Vice President": 2, "Experienced Manager": 3,
+    "Director": 4, "Senior": 5, "Entry Level Manager": 6, "Manager": 6,
+    "Entry Level": 8,
+}
+
+
+def load_key_persons(session):
+    """company(norm) -> [ManagementProfile] from KeyPerson nodes (works_at).
+
+    KeyPerson is the real, graph-native contact set (all 91 accounts covered).
+    Top contacts and more-senior people are listed first. Photos are joined from
+    person_photos.csv by LinkedIn URL where available."""
+    photos = {}
+    pp = DATA / "waldner_pas_person_photos.csv"
+    if pp.exists():
+        for row in csv.DictReader(open(pp)):
+            photos[(row["person_linkedin_url"] or "").rstrip("/")] = row["profile_picture_url"] or None
+    by_co = {}
+    for r in session.run(
+        "MATCH (c:Company)-[:in_lead_list]->(:LeadList) "
+        "MATCH (k:KeyPerson)-[:works_at]->(c) "
+        "RETURN c.name AS company, k.full_name AS name, k.title AS title, "
+        "k.seniority AS seniority, k.function_category AS func, "
+        "k.years_of_experience AS yoe, k.linkedin_url AS linkedin, "
+        "k.profile_url AS profile, k.residence_location AS residence, "
+        "k.work_site AS work_site, k.headline AS headline, "
+        "k.is_top_contact AS top, k.num_connections AS conns"
+    ):
+        co = norm(r["company"])
+        url = (r["linkedin"] or r["profile"] or "").rstrip("/")
+        by_co.setdefault(co, []).append({
+            "name": r["name"] or "",
+            "title": r["title"] or "",
+            "seniority": r["seniority"] or "",
+            "yearsAtCompany": None,  # KeyPerson has experience-band, not tenure
+            "linkedinUrl": url,
+            "location": r["residence"] or r["work_site"] or "",
+            "headline": r["headline"] or "",
+            "photoUrl": photos.get(url),
+            # extra signal used only for ranking (dropped before output)
+            "_top": bool(r["top"]),
+            "_rank": SENIORITY_RANK.get(r["seniority"] or "", 7),
+            "_conns": r["conns"] or 0,
+        })
+    for co, lst in by_co.items():
+        # de-dup by linkedin/name, then rank: top contacts, seniority, connections.
+        seen, out = set(), []
+        for c in lst:
+            key = c["linkedinUrl"] or c["name"]
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(c)
+        out.sort(key=lambda c: (0 if c["_top"] else 1, c["_rank"], -c["_conns"]))
+        for c in out:
+            del c["_top"], c["_rank"], c["_conns"]
+        by_co[co] = out[:15]
+    return by_co
+
+
+def load_people_by_function(session):
+    """company(norm) -> { buying_centre_function: [Person] } from KeyPerson
+    -[:fills_role]->StakeholderRole (SFF). Keyed by the role's FUNCTION
+    (job_executor / job_overseer / job_influencer / purchase_influencer /
+    purchase_executor) rather than the specific role title — a company's people
+    map cleanly onto the five buying-centre functions, giving full real coverage.
+    Person shape matches the app's Person type: {name, role, location, linkedin,
+    email}, where `role` is the person's own job title."""
+    by_co = {}
+    for r in session.run(
+        "MATCH (c:Company)-[:in_lead_list]->(:LeadList) "
+        "MATCH (k:KeyPerson)-[:works_at]->(c) "
+        "MATCH (k)-[:fills_role]->(sr:StakeholderRole {value_network:$net}) "
+        "RETURN c.name AS company, sr.role AS func, k.full_name AS name, "
+        "k.title AS title, k.residence_location AS residence, k.work_site AS work_site, "
+        "k.linkedin_url AS linkedin, k.profile_url AS profile, k.work_email AS email, "
+        "k.is_top_contact AS top, k.seniority AS seniority, k.num_connections AS conns",
+        net="325412/Sterile Fill-Finish",
+    ):
+        co = norm(r["company"])
+        func = r["func"]
+        if not func:
+            continue
+        person = {
+            "name": r["name"] or "",
+            "role": r["title"] or "",  # the person's own job title
+            "location": r["residence"] or r["work_site"] or "",
+            "linkedin": (r["linkedin"] or r["profile"] or ""),
+            "email": r["email"] or "",
+            "_top": bool(r["top"]),
+            "_rank": SENIORITY_RANK.get(r["seniority"] or "", 7),
+            "_conns": r["conns"] or 0,
+        }
+        by_co.setdefault(co, {}).setdefault(func, []).append(person)
+    # dedupe a person within a function, rank (top contacts, seniority, connections)
+    for co, funcs in by_co.items():
+        for func, people in funcs.items():
+            seen, out = set(), []
+            for p in people:
+                key = p["linkedin"] or p["name"]
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(p)
+            out.sort(key=lambda p: (0 if p["_top"] else 1, p["_rank"], -p["_conns"]))
+            for p in out:
+                del p["_top"], p["_rank"], p["_conns"]
+            funcs[func] = out[:8]
+    return by_co
+
+
 def num(v):
     try:
         return float(v) if v not in (None, "", "NA") else None
@@ -226,7 +339,7 @@ def to_int(v):
 
 
 # ---------------------------------------------------------------- build
-def build_company(lead, cj, enr, mgmt, allow_online):
+def build_company(lead, cj, enr, mgmt, key_persons, people_by_func, allow_online):
     name = lead["name"]
     site = lead.get("dach_site")
     # Pin the account at its DACH plant: country from the site text, not the
@@ -246,7 +359,9 @@ def build_company(lead, cj, enr, mgmt, allow_online):
             if lat is not None:
                 city = cand
                 break
-    contacts = (rec or {}).get("contacts") or mgmt.get(n) or []
+    # Contacts: prefer the graph-native KeyPersons (cover all 91 accounts), then
+    # fall back to the pre-built companies.json contacts / management CSVs.
+    contacts = key_persons.get(n) or (rec or {}).get("contacts") or mgmt.get(n) or []
     website = lead.get("website_domain") or (rec or {}).get("url") or (e or {}).get("website") or ""
     url = website if website.startswith("http") else (f"https://{website}" if website else "")
     status = (rec or {}).get("status") if rec else None
@@ -298,6 +413,10 @@ def build_company(lead, cj, enr, mgmt, allow_online):
         "roleQaPct": pick((rec or {}).get("roleQaPct"), num((e or {}).get("role_qa_pct")) if e else None),
         "logoUrl": (rec or {}).get("logoUrl"),
         "contacts": contacts,
+        # Real buying-centre people, keyed by SFF buying-centre function
+        # (KeyPerson-[:fills_role]->StakeholderRole.role). Surfaced in the Value
+        # Network modal's buying centre. All real; no synthetic contacts.
+        "peopleByFunction": people_by_func.get(n, {}),
         "locations": (rec or {}).get("locations") or (
             [{"role": "HQ", "street": None, "city": city, "postcode": None,
               "country": iso, "lat": lat, "lon": lon, "employeesHint": None}] if (lat and lon) else []
@@ -329,13 +448,18 @@ def main() -> int:
             "c.website_domain AS website_domain, c.segment_focus AS segment_focus, "
             "c.lead_status AS lead_status ORDER BY c.name"
         )]
+        key_persons = load_key_persons(s)
+        people_by_func = load_people_by_function(s)
     driver.close()
-    print(f"validated targets: {len(leads)}")
+    kp_total = sum(len(v) for v in key_persons.values())
+    role_links = sum(len(p) for roles in people_by_func.values() for p in roles.values())
+    print(f"validated targets: {len(leads)}  |  KeyPersons: {kp_total} across {len(key_persons)} companies"
+          f"  |  buying-centre people-role slots: {role_links}")
 
     companies = []
     matched = geocoded = with_contacts = 0
     for lead in leads:
-        c = build_company(lead, cj, enr, mgmt, allow_online)
+        c = build_company(lead, cj, enr, mgmt, key_persons, people_by_func, allow_online)
         companies.append(c)
         if norm(lead["name"]) in cj or norm(lead["name"]) in enr:
             matched += 1

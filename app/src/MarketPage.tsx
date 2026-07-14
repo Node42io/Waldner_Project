@@ -636,10 +636,50 @@ function RequestEmailButton({ name, role, email, linkedin }: { name: string; rol
   )
 }
 
-// One stakeholder: name + ESCO link + a button that opens its Needs & Jobs. In the
-// sales modal it also lists the contact people. No accordion — the jobs now live
-// behind the button rather than expanding inline.
-function StakeholderCard({ name, esco, people, onNeeds }: { name: string; esco: string; people?: Person[]; onNeeds: (stk: string) => void }) {
+// A list of REAL buying-centre people (KeyPersons from Neo4j): each row is
+// name · their job title · location · LinkedIn · request-email. No synthetic data.
+function PeopleList({ people }: { people: Person[] }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-100)' }}>
+      {people.map((p) => (
+        <div key={p.linkedin || p.name} style={{ display: 'flex', alignItems: 'center', columnGap: 'var(--space-200)', rowGap: 'var(--space-50)', flexWrap: 'wrap', minWidth: 0 }}>
+          {p.linkedin ? (
+            <a
+              href={p.linkedin}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              title={`${p.name} on LinkedIn`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-100)', flexShrink: 0, textDecoration: 'none', color: 'var(--text-link)' }}
+            >
+              <LinkedinLogo size={14} weight="fill" style={{ flexShrink: 0 }} />
+              <Text variant="b3" weight="medium" as="span" style={{ color: 'var(--text-link)' }}>{p.name}</Text>
+            </a>
+          ) : (
+            <Text variant="b3" weight="medium" as="span">{p.name}</Text>
+          )}
+          {p.role ? (
+            <>
+              <span style={{ width: 'var(--space-50)', height: 'var(--space-50)', borderRadius: '50%', background: 'var(--icon-description)', flexShrink: 0 }} aria-hidden />
+              <Text variant="b3" as="span" style={{ color: 'var(--text-description)' }}>{p.role}</Text>
+            </>
+          ) : null}
+          {p.location ? (
+            <>
+              <span style={{ width: 'var(--space-50)', height: 'var(--space-50)', borderRadius: '50%', background: 'var(--icon-description)', flexShrink: 0 }} aria-hidden />
+              <AddressLine size="b3">{p.location}</AddressLine>
+            </>
+          ) : null}
+          <RequestEmailButton name={p.name} role={p.role} email={p.email} linkedin={p.linkedin} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// One stakeholder role: name + ESCO link + a button that opens its Needs & Jobs.
+// (Real people are listed once per buying-centre function, not per role.)
+function StakeholderCard({ name, esco, onNeeds }: { name: string; esco: string; onNeeds: (stk: string) => void }) {
   const [hover, setHover] = useState(false)
   return (
     <div
@@ -676,39 +716,15 @@ function StakeholderCard({ name, esco, people, onNeeds }: { name: string; esco: 
             View Needs & Jobs
           </Button>
         </div>
-        {/* Contact people for this stakeholder — 4–5 invented identities, each
-            with name · role · location · LinkedIn. Shown only in the sales modal
-            (people is passed there). */}
-        {people && people.length ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-100)' }}>
-            {people.map((p) => (
-              <div key={p.linkedin} style={{ display: 'flex', alignItems: 'center', columnGap: 'var(--space-200)', rowGap: 'var(--space-50)', flexWrap: 'wrap', minWidth: 0 }}>
-                <a
-                  href={p.linkedin}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  title={`${p.name} on LinkedIn`}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-100)', flexShrink: 0, textDecoration: 'none', color: 'var(--text-link)' }}
-                >
-                  <LinkedinLogo size={14} weight="fill" style={{ flexShrink: 0 }} />
-                  <Text variant="b3" weight="medium" as="span" style={{ color: 'var(--text-link)' }}>{p.name}</Text>
-                </a>
-                <span style={{ width: 'var(--space-50)', height: 'var(--space-50)', borderRadius: '50%', background: 'var(--icon-description)', flexShrink: 0 }} aria-hidden />
-                <Text variant="b3" as="span" style={{ color: 'var(--text-description)' }}>{p.role}</Text>
-                <span style={{ width: 'var(--space-50)', height: 'var(--space-50)', borderRadius: '50%', background: 'var(--icon-description)', flexShrink: 0 }} aria-hidden />
-                <AddressLine size="b3">{p.location}</AddressLine>
-                <RequestEmailButton name={p.name} role={p.role} email={p.email} linkedin={p.linkedin} />
-              </div>
-            ))}
-          </div>
-        ) : null}
       </div>
     </div>
   )
 }
 
-function StakeholderGroup({ label, icon: RoleIcon, desc, roles, withPeople, seed, onNeeds }: { label: string; icon: Icon; desc: string; roles: { name: string; esco: string; jobs: StakeholderJobs }[]; withPeople?: boolean; seed?: string; onNeeds: (stk: string) => void }) {
+function StakeholderGroup({ label, icon: RoleIcon, desc, roles, withPeople, functionKey, peopleByFunction, onNeeds }: { label: string; icon: Icon; desc: string; roles: { name: string; esco: string; jobs: StakeholderJobs }[]; withPeople?: boolean; functionKey?: string; peopleByFunction?: Record<string, Person[]>; onNeeds: (stk: string) => void }) {
+  // Real people at this company who sit in this buying-centre function
+  // (KeyPerson-[:fills_role]->StakeholderRole.role). Shown only in the sales modal.
+  const people = withPeople && functionKey ? (peopleByFunction?.[functionKey] ?? []) : []
   // A left rail brackets the header + its cards so the group reads as one unit
   // without a full card container.
   return (
@@ -717,17 +733,24 @@ function StakeholderGroup({ label, icon: RoleIcon, desc, roles, withPeople, seed
       <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-100)', flexWrap: 'wrap', minWidth: 0 }}>
         <RoleIcon size={14} weight="regular" style={{ flexShrink: 0 }} />
         <Text variant="b3" weight="medium" as="span">{label}</Text>
-        <Badge variant="neutral" size="xs">{roles.length}</Badge>
+        <Badge variant="neutral" size="xs">{withPeople ? people.length : roles.length}</Badge>
         <span style={{ width: 'var(--space-100)', height: 'var(--space-100)', borderRadius: '50%', background: 'var(--icon-description)', flexShrink: 0 }} />
         <Text variant="b3" as="span" style={{ color: 'var(--text-description)' }}>{desc}</Text>
       </span>
+      {/* Real people at this account in this function (sales modal only). */}
+      {withPeople ? (
+        people.length ? (
+          <PeopleList people={people} />
+        ) : (
+          <Text variant="b3" as="span" style={{ color: 'var(--text-labels)' }}>No key people identified for this function yet.</Text>
+        )
+      ) : null}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-200)', width: '100%', minWidth: 0 }}>
         {roles.map((role) => (
           <StakeholderCard
             key={role.name}
             name={role.name}
             esco={role.esco}
-            people={withPeople ? peopleFor(`${seed ?? ''}:${role.name}`, role.name) : undefined}
             onNeeds={onNeeds}
           />
         ))}
@@ -773,62 +796,19 @@ function NeedsButton({ enabled, onOpen }: { enabled: boolean; onOpen: () => void
   )
 }
 
-// --- Named people behind each stakeholder -------------------------------------
-// Every buying-centre stakeholder is paired with a handful (4–5) of named people
-// to reach out to, each with a role, a location and a LinkedIn link. The
-// identities are FABRICATED placeholders for the demo (names/roles/cities
-// invented, LinkedIn URLs built from the name), chosen deterministically per
-// seed so a given stakeholder at a given level always resolves to the same
-// people. Surfaced only in the sales Value Network modal (modal), not on the
-// market card.
+// --- Named people behind each buying-centre function --------------------------
+// Each buying-centre function lists the account's REAL people to reach out to —
+// KeyPersons from Neo4j (KeyPerson-[:fills_role]->StakeholderRole), each with
+// their job title, location, LinkedIn and (where known) work email. Surfaced only
+// in the sales Value Network modal. No synthetic/fabricated identities.
 type Person = { name: string; role: string; location: string; linkedin: string; email: string }
-
-const CONTACT_FIRST = ['Sarah', 'Michael', 'Elena', 'David', 'Priya', 'Thomas', 'Laura', 'Marco', 'Anna', 'James', 'Sofia', 'Daniel', 'Chiara', 'Robert', 'Nina', 'Paolo']
-const CONTACT_LAST = ['Bennett', 'Hoffmann', 'Rossi', 'Novak', 'Sharma', 'Weber', 'Lindgren', 'Costa', 'Meyer', 'Whitfield', 'Bianchi', 'Keller', 'Moretti', 'Andersson', 'Kowalski', 'Ferrari']
-// Seniority qualifier prefixed to the stakeholder title, so each person reads as
-// a distinct role (e.g. "Senior Radiographer") rather than repeating the group.
-const CONTACT_SENIORITY = ['Head of', 'Senior', 'Lead', 'Principal', 'Deputy']
-const CONTACT_LOCATION = ['Basel, Switzerland', 'Munich, Germany', 'Milan, Italy', 'Lyon, France', 'Zürich, Switzerland', 'Hamburg, Germany', 'Vienna, Austria', 'Rotterdam, Netherlands', 'Barcelona, Spain', 'Copenhagen, Denmark', 'Stockholm, Sweden', 'Berlin, Germany']
-// Fabricated professional email domains for the demo contacts.
-const CONTACT_DOMAIN = ['medgroup.eu', 'imaging-partners.eu', 'clinicnet.eu', 'radiologycare.eu', 'unihealth.eu', 'medcenter.eu']
-
-function hashStr(s: string): number {
-  let h = 2166136261
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i)
-    h = Math.imul(h, 16777619)
-  }
-  return h >>> 0
-}
-
-// 4–5 fabricated contacts for a stakeholder, deterministic per (seed, role).
-function peopleFor(seed: string, role: string): Person[] {
-  const count = 4 + (hashStr(seed) % 2) // 4 or 5
-  return Array.from({ length: count }, (_, i) => {
-    const h = hashStr(`${seed}#${i}`)
-    const first = CONTACT_FIRST[h % CONTACT_FIRST.length]
-    const last = CONTACT_LAST[(h >>> 5) % CONTACT_LAST.length]
-    const seniority = CONTACT_SENIORITY[(h >>> 11) % CONTACT_SENIORITY.length]
-    const location = CONTACT_LOCATION[(h >>> 17) % CONTACT_LOCATION.length]
-    // For roughly one in three contacts the email lookup comes up empty (demo) —
-    // those fall back to a "reach out on LinkedIn" notice instead of an address.
-    const hasEmail = (h >>> 27) % 3 !== 0
-    return {
-      name: `${first} ${last}`,
-      role: `${seniority} ${role}`,
-      location,
-      linkedin: `https://www.linkedin.com/in/${first.toLowerCase()}-${last.toLowerCase()}-${i + 1}`,
-      email: hasEmail ? `${first.toLowerCase()}.${last.toLowerCase()}@${CONTACT_DOMAIN[(h >>> 23) % CONTACT_DOMAIN.length]}` : '',
-    }
-  })
-}
 
 // Detail panel for the selected tree node: level badge + name, the ancestry
 // path, the node's core functional job, the (MRI-only) product, and the buying
 // centre. The Needs button jumps to the ODI matrix for the MRI product.
 // `modal` = rendered inside the sales Value Network modal: it pairs each
 // stakeholder with a named contact person and force-enables the Needs button.
-function MarketDetail({ node, path, onSelect, onNeeds, modal }: { node: TreeNode; path: TreeNode[]; onSelect: (node: TreeNode) => void; onNeeds: (stk?: string, slug?: string) => void; modal?: boolean }) {
+function MarketDetail({ node, path, onSelect, onNeeds, modal, peopleByFunction }: { node: TreeNode; path: TreeNode[]; onSelect: (node: TreeNode) => void; onNeeds: (stk?: string, slug?: string) => void; modal?: boolean; peopleByFunction?: Record<string, Person[]> }) {
   const data = nodeById.get(node.id)
   // A node is "analysed" if its unit has ODI ratings — its Needs button then
   // deep-links to that unit's ODI page (/odi-matrix?unit=<slug>).
@@ -1001,7 +981,7 @@ function MarketDetail({ node, path, onSelect, onNeeds, modal }: { node: TreeNode
         {buyingTab === 'stakeholders' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-500)', width: '100%' }}>
             {stakeholderGroups.map((g) => (
-              <StakeholderGroup key={g.role} label={g.label} icon={g.icon} desc={g.desc} roles={g.roles} withPeople={modal} seed={node.id} onNeeds={(stk?: string) => onNeeds(stk, ratedSlug)} />
+              <StakeholderGroup key={g.role} label={g.label} icon={g.icon} desc={g.desc} roles={g.roles} withPeople={modal} functionKey={g.role} peopleByFunction={peopleByFunction} onNeeds={(stk?: string) => onNeeds(stk, ratedSlug)} />
             ))}
           </div>
         ) : (
@@ -1105,7 +1085,7 @@ function ResizableDivider({ width, setWidth, min, max }: { width: number; setWid
 // sales Value Network modal. `onNeeds` handles the detail's Needs button;
 // `modal` = rendered in the sales modal (pairs stakeholders with contact people
 // and force-enables the Needs button).
-export function ValueNetworkView({ onNeeds, modal, initialSelectedId }: { onNeeds: (stk?: string, slug?: string) => void; modal?: boolean; initialSelectedId?: string }) {
+export function ValueNetworkView({ onNeeds, modal, initialSelectedId, peopleByFunction }: { onNeeds: (stk?: string, slug?: string) => void; modal?: boolean; initialSelectedId?: string; peopleByFunction?: Record<string, Person[]> }) {
   // Open focused on a specific node (e.g. a product picked in the coverage view),
   // falling back to the root. Its ancestor chain seeds the tree's expanded set so
   // the node is visible on mount.
@@ -1212,6 +1192,7 @@ export function ValueNetworkView({ onNeeds, modal, initialSelectedId }: { onNeed
           onSelect={(n) => { setSelected(n); if (n.id !== selected.id) setShowProducts(false) }}
           onNeeds={onNeeds}
           modal={modal}
+          peopleByFunction={peopleByFunction}
         />
       </div>
     </div>

@@ -128,7 +128,7 @@ export function CompanyDetail({
   );
 
   const modal = vnOpen ? (
-    <ValueNetworkModal companyName={company.name} onClose={() => setVnOpen(false)} />
+    <ValueNetworkModal companyName={company.name} peopleByFunction={company.peopleByFunction} onClose={() => setVnOpen(false)} />
   ) : null;
 
   if (layout === "row") {
