@@ -772,7 +772,7 @@ function MarketDetail({ node, path, onSelect, onNeeds, modal, peopleByUnitRole }
                 sales Value Network modal (both render through MarketDetail). */}
             <Text variant="h4" as="p" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{data?.name ?? node.text}</Text>
           </div>
-          <NeedsButton enabled={isRated || !!modal} onOpen={() => onNeeds(undefined, ratedSlug)} />
+          <NeedsButton enabled={isRated} onOpen={() => onNeeds(undefined, ratedSlug)} />
         </div>
         <Divider />
       </div>

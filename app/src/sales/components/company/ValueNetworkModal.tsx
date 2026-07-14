@@ -32,6 +32,21 @@ export function ValueNetworkModal({
   // node's needs (header Needs button); a single name = that stakeholder's needs
   // (a card's "View needs" button). Kept in-modal — no navigation.
   const [needsStk, setNeedsStk] = useState<string[]>([]);
+  // The rated unit whose needs to show (its ODI slug), and that unit's loaded ODI
+  // data — so the table shows the SELECTED unit's needs, not a fixed default.
+  const [needsSlug, setNeedsSlug] = useState<string | null>(null);
+  const [needsData, setNeedsData] = useState<unknown>(null);
+
+  useEffect(() => {
+    if (!showNeeds || !needsSlug) return;
+    let alive = true;
+    setNeedsData(null);
+    fetch(`${import.meta.env.BASE_URL}data/odi/${needsSlug}.json`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((d) => { if (alive) setNeedsData(d); })
+      .catch(() => { if (alive) setNeedsData(null); });
+    return () => { alive = false; };
+  }, [showNeeds, needsSlug]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -139,11 +154,18 @@ export function ValueNetworkModal({
             ODI needs table once a node's Needs button is pressed. */}
         <Scrollbar style={{ padding: "var(--space-500)" }}>
           {showNeeds ? (
-            <ODIMatrixView initialStk={needsStk} />
+            needsSlug && !needsData ? (
+              <Text variant="b2" as="p" style={{ color: "var(--text-labels)" }}>Loading needs…</Text>
+            ) : (
+              // Show the SELECTED unit's needs (needsData). Falls back to the
+              // bundled default only if the unit's file couldn't be loaded.
+              <ODIMatrixView key={needsSlug ?? "default"} initialStk={needsStk} data={(needsData as never) ?? undefined} />
+            )
           ) : (
             <ValueNetworkView
-              onNeeds={(stk) => {
+              onNeeds={(stk, slug) => {
                 setNeedsStk(stk ? [stk] : []);
+                setNeedsSlug(slug ?? null);
                 setShowNeeds(true);
               }}
               modal
