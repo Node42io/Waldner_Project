@@ -2,7 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { ArrowElbowDownRight, ArrowRight, ArrowsClockwise, ArrowSquareOut, CheckCircle, CircleNotch, ClipboardText, Cube, Envelope, Eye, Lightbulb, LinkedinLogo, LockSimple, Megaphone, Pulse, ShoppingCart, Trash, TreeStructure, UsersThree, WarningCircle, Wrench, X } from '@phosphor-icons/react'
+import { ArrowElbowDownRight, ArrowRight, ArrowsClockwise, ArrowSquareOut, ClipboardText, Cube, Envelope, Eye, Lightbulb, LinkedinLogo, LockSimple, Megaphone, Pulse, ShoppingCart, Trash, TreeStructure, UsersThree, Wrench, X } from '@phosphor-icons/react'
 import type { Icon } from '@phosphor-icons/react'
 import {
   Accordion,
@@ -445,92 +445,64 @@ function JobLifeCycleView({ jobs }: { jobs: Partial<Record<LifecycleStage, Produ
 }
 
 // An email address + a copy-to-clipboard button, with transient "copied"
-// feedback. Reused in the request dialog and inline in the stakeholder view.
-// Per-person email request. A contact's email isn't shown outright — it has to
-// be requested. The envelope button opens a confirmation dialog; confirming
-// starts a short "fetching" spinner (demo — no backend), then reveals the email
-// with a copy button. Once fetched, the email shows inline on the stakeholder
-// row and the request UI settles. Every dialog has an X to dismiss it.
-function RequestEmailButton({ name, role, email, linkedin }: { name: string; role: string; email: string; linkedin: string }) {
-  const [requested, setRequested] = useState(false)
-  // A contact's email lookup can come up empty — then there's no address to
-  // fetch and we point the user to LinkedIn instead.
+// Per-person email. The envelope shows ONLY when the contact has a work email;
+// clicking it opens a small modal with the address (copy) + a "Send email"
+// mailto action. No email → no envelope at all.
+function RequestEmailButton({ name, role, email }: { name: string; role: string; email: string; linkedin: string }) {
   const available = email.trim().length > 0
-  // null = closed · 'confirm' = asking to confirm · 'loading' = fetching ·
-  // 'ready' = email revealed with a copy button · 'unavailable' = no email found.
-  const [phase, setPhase] = useState<null | 'confirm' | 'loading' | 'ready' | 'unavailable'>(null)
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    if (!phase) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setPhase(null) }
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [phase])
+  }, [open])
 
-  // Confirming kicks off a 3s "fetch", then reveals the email.
-  useEffect(() => {
-    if (phase !== 'loading') return
-    const t = setTimeout(() => { setRequested(true); setPhase('ready') }, 3000)
-    return () => clearTimeout(t)
-  }, [phase])
-
-  const firstName = name.split(' ')[0]
-  const isConfirm = phase === 'confirm'
-  const isLoading = phase === 'loading'
-  const isUnavailable = phase === 'unavailable'
-  const title = isConfirm ? 'Request email' : isLoading ? 'Fetching email…' : isUnavailable ? 'Email not available' : 'Email ready'
+  // No work email on file → don't render the envelope at all.
+  if (!available) return null
 
   return (
     <>
-      {requested ? (
-        <EmailChip email={email} />
-      ) : (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); setPhase(available ? 'confirm' : 'unavailable') }}
-          title={available ? 'Request email' : 'Email not available'}
-          aria-label={available ? `Request email for ${name}` : `Email not available for ${name}`}
-          style={{
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            width: 'var(--space-500)', height: 'var(--space-500)', padding: 0, border: 0,
-            borderRadius: 'var(--radius-xs)', background: 'transparent', cursor: 'pointer',
-            color: 'var(--icon-description)', transition: 'color 120ms ease',
-          }}
-        >
-          <Envelope size={16} weight="regular" />
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen(true) }}
+        title={`Email ${name}`}
+        aria-label={`Email ${name}`}
+        style={{
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          width: 'var(--space-500)', height: 'var(--space-500)', padding: 0, border: 0,
+          borderRadius: 'var(--radius-xs)', background: 'transparent', cursor: 'pointer',
+          color: 'var(--icon-description)', transition: 'color 120ms ease',
+        }}
+      >
+        <Envelope size={16} weight="regular" />
+      </button>
 
-      {phase ? createPortal(
+      {open ? createPortal(
         <div
           role="dialog"
           aria-modal="true"
-          aria-label={title}
-          onMouseDown={() => setPhase(null)}
+          aria-label={`Email ${name}`}
+          onMouseDown={() => setOpen(false)}
           style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--space-500)', background: 'rgba(0, 0, 0, 0.55)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
         >
           <div
             onMouseDown={(e) => e.stopPropagation()}
             style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-300)', width: 'min(420px, 100%)', padding: 'var(--space-500)', background: 'var(--surface-default-default)', color: 'var(--text-body)', border: 'var(--border-width-default) solid var(--border-default-default)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg, var(--shadow-md))' }}
           >
-            {/* Header — status icon · title/subtitle · X close */}
+            {/* Header — envelope · name/role · X close */}
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-200)' }}>
-              <span style={{ display: 'grid', placeItems: 'center', flexShrink: 0, width: 'var(--space-700)', height: 'var(--space-700)', borderRadius: 'var(--radius-full)', background: phase === 'ready' ? 'var(--surface-default-success)' : isUnavailable ? 'var(--surface-default-warning)' : 'var(--surface-default-information)', color: phase === 'ready' ? 'var(--text-success)' : isUnavailable ? 'var(--text-warning)' : 'var(--text-information)' }}>
-                {isLoading
-                  ? <CircleNotch size={20} weight="bold" style={{ animation: 'n42-spin 0.8s linear infinite' }} />
-                  : phase === 'ready'
-                    ? <CheckCircle size={20} weight="fill" />
-                    : isUnavailable
-                      ? <WarningCircle size={20} weight="regular" />
-                      : <Envelope size={20} weight="regular" />}
+              <span style={{ display: 'grid', placeItems: 'center', flexShrink: 0, width: 'var(--space-700)', height: 'var(--space-700)', borderRadius: 'var(--radius-full)', background: 'var(--surface-default-information)', color: 'var(--text-information)' }}>
+                <Envelope size={20} weight="regular" />
               </span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-50)', minWidth: 0, flex: 1 }}>
-                <Text variant="h5" as="h2" style={{ margin: 0 }}>{title}</Text>
+                <Text variant="h5" as="h2" style={{ margin: 0 }}>Email</Text>
                 <Text variant="b3" as="p" style={{ margin: 0, color: 'var(--text-description)' }}>{name} · {role}</Text>
               </div>
               <button
                 type="button"
-                onClick={() => setPhase(null)}
+                onClick={() => setOpen(false)}
                 aria-label="Close"
                 style={{ flexShrink: 0, display: 'grid', placeItems: 'center', width: 'var(--space-600)', height: 'var(--space-600)', border: 0, borderRadius: 'var(--radius-xs)', background: 'transparent', color: 'var(--icon-description)', cursor: 'pointer' }}
               >
@@ -538,38 +510,14 @@ function RequestEmailButton({ name, role, email, linkedin }: { name: string; rol
               </button>
             </div>
 
-            {isConfirm ? (
-              <Text variant="b2" as="p" style={{ margin: 0 }}>
-                {`We'll look up ${firstName}'s work email address — it'll be ready to copy here in a few seconds. Continue?`}
-              </Text>
-            ) : isLoading ? (
-              <Text variant="b2" as="p" style={{ margin: 0, color: 'var(--text-description)' }}>
-                {`Looking up ${firstName}'s email address…`}
-              </Text>
-            ) : isUnavailable ? (
-              <Text variant="b2" as="p" style={{ margin: 0 }}>
-                Email not available, you can reach out on LinkedIn.
-              </Text>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-200)', padding: 'var(--space-300)', borderRadius: 'var(--radius-md)', background: 'var(--surface-default-default-2)', border: '1px solid var(--border-default-default)' }}>
-                <EmailChip email={email} />
-              </div>
-            )}
+            {/* The email address, with the kit's copy chip. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-200)', padding: 'var(--space-300)', borderRadius: 'var(--radius-md)', background: 'var(--surface-default-default-2)', border: '1px solid var(--border-default-default)' }}>
+              <EmailChip email={email} />
+            </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-200)' }}>
-              {isConfirm ? (
-                <>
-                  <Button variant="secondary-outline" size="sm" onClick={() => setPhase(null)}>Cancel</Button>
-                  <Button variant="primary" size="sm" leftIcon={<Envelope size={16} weight="regular" />} onClick={() => setPhase('loading')}>Confirm request</Button>
-                </>
-              ) : isUnavailable ? (
-                <>
-                  <Button variant="secondary-outline" size="sm" onClick={() => setPhase(null)}>Close</Button>
-                  <Button variant="primary" size="sm" leftIcon={<LinkedinLogo size={16} weight="fill" />} onClick={() => window.open(linkedin, '_blank', 'noopener')}>Open LinkedIn</Button>
-                </>
-              ) : phase === 'ready' ? (
-                <Button variant="primary" size="sm" onClick={() => setPhase(null)}>Done</Button>
-              ) : null}
+              <Button variant="secondary-outline" size="sm" onClick={() => setOpen(false)}>Close</Button>
+              <Button variant="primary" size="sm" leftIcon={<Envelope size={16} weight="regular" />} onClick={() => { window.location.href = `mailto:${email}` }}>Send email</Button>
             </div>
           </div>
         </div>,
