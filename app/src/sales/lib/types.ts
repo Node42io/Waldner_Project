@@ -30,6 +30,9 @@ export type RolePerson = {
   location: string;
   linkedin: string;
   email: string;
+  // True when `email` was derived from the company's verified email pattern
+  // (guessed) rather than a directly verified address. UI stars it + hints.
+  emailPattern?: boolean;
 };
 
 export type ManagementProfile = {

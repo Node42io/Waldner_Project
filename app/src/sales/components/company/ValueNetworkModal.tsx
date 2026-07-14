@@ -24,7 +24,7 @@ export function ValueNetworkModal({
 }: {
   companyName: string;
   /** Real buying-centre people for this company, keyed by unit name -> role title. */
-  peopleByUnitRole?: Record<string, Record<string, { name: string; role: string; location: string; linkedin: string; email: string }[]>>;
+  peopleByUnitRole?: Record<string, Record<string, { name: string; role: string; location: string; linkedin: string; email: string; emailPattern?: boolean }[]>>;
   onClose: () => void;
 }) {
   const [showNeeds, setShowNeeds] = useState(false);

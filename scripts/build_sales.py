@@ -290,19 +290,27 @@ def load_people_by_unit_role(session, rated_units):
         "RETURN c.name AS company, sr.unit_name AS unit, sr.title AS role, "
         "k.full_name AS name, k.title AS title, k.residence_location AS residence, "
         "k.work_site AS work_site, k.linkedin_url AS linkedin, k.profile_url AS profile, "
-        "k.work_email AS email, k.is_top_contact AS top, k.seniority AS seniority, "
+        "k.work_email AS email, k.pattern_email AS pattern_email, "
+        "k.is_top_contact AS top, k.seniority AS seniority, "
         "k.num_connections AS conns",
         net="325412/Sterile Fill-Finish",
     ):
         unit, role = r["unit"], r["role"]
         if not unit or not role or unit not in rated_units:
             continue
+        # Prefer the verified (PDL) work_email; fall back to the pattern_email
+        # (guessed from the company's verified email pattern). `emailPattern`
+        # flags the latter so the UI can star it + explain the source.
+        work = r["email"] or ""
+        pattern = r["pattern_email"] or ""
+        email = work or pattern
         person = {
             "name": r["name"] or "",
             "role": r["title"] or "",  # the person's own job title
             "location": r["residence"] or r["work_site"] or "",
             "linkedin": (r["linkedin"] or r["profile"] or ""),
-            "email": r["email"] or "",
+            "email": email,
+            "emailPattern": bool(email) and not work,
             "_top": bool(r["top"]),
             "_rank": SENIORITY_RANK.get(r["seniority"] or "", 7),
             "_conns": r["conns"] or 0,

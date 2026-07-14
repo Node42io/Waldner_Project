@@ -2,7 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { ArrowElbowDownRight, ArrowRight, ArrowsClockwise, ArrowSquareOut, ClipboardText, Cube, Envelope, Eye, Lightbulb, LinkedinLogo, LockSimple, Megaphone, Pulse, ShoppingCart, Trash, TreeStructure, UsersThree, Wrench, X } from '@phosphor-icons/react'
+import { ArrowElbowDownRight, ArrowRight, ArrowsClockwise, ArrowSquareOut, ClipboardText, Cube, Envelope, Eye, Lightbulb, LinkedinLogo, LockSimple, Megaphone, Pulse, ShoppingCart, Star, Trash, TreeStructure, UsersThree, Wrench, X } from '@phosphor-icons/react'
 import type { Icon } from '@phosphor-icons/react'
 import {
   Accordion,
@@ -445,12 +445,15 @@ function JobLifeCycleView({ jobs }: { jobs: Partial<Record<LifecycleStage, Produ
 }
 
 // An email address + a copy-to-clipboard button, with transient "copied"
-// Per-person email. The envelope shows ONLY when the contact has a work email;
+// Per-person email. The envelope shows ONLY when the contact has an email;
 // clicking it opens a small modal with the address (copy) + a "Send email"
-// mailto action. No email → no envelope at all.
-function RequestEmailButton({ name, role, email }: { name: string; role: string; email: string; linkedin: string }) {
+// mailto action. No email → no envelope at all. When `pattern` is set the
+// address was derived from the company's verified email pattern (not directly
+// verified): the envelope gets a star badge and the modal explains the source.
+function RequestEmailButton({ name, role, email, pattern = false }: { name: string; role: string; email: string; linkedin: string; pattern?: boolean }) {
   const available = email.trim().length > 0
   const [open, setOpen] = useState(false)
+  const patternHint = 'Pattern-matched from this company’s verified e-mail format — likely correct, but not individually verified.'
 
   useEffect(() => {
     if (!open) return
@@ -467,9 +470,10 @@ function RequestEmailButton({ name, role, email }: { name: string; role: string;
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen(true) }}
-        title={`Email ${name}`}
-        aria-label={`Email ${name}`}
+        title={pattern ? `Email ${name} (pattern-matched address) — ${patternHint}` : `Email ${name}`}
+        aria-label={pattern ? `Email ${name}, pattern-matched address` : `Email ${name}`}
         style={{
+          position: 'relative',
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           width: 'var(--space-500)', height: 'var(--space-500)', padding: 0, border: 0,
           borderRadius: 'var(--radius-xs)', background: 'transparent', cursor: 'pointer',
@@ -477,6 +481,14 @@ function RequestEmailButton({ name, role, email }: { name: string; role: string;
         }}
       >
         <Envelope size={16} weight="regular" />
+        {pattern ? (
+          <Star
+            size={9}
+            weight="fill"
+            aria-hidden
+            style={{ position: 'absolute', top: -1, right: -1, color: 'var(--text-warning, #b7791f)' }}
+          />
+        ) : null}
       </button>
 
       {open ? createPortal(
@@ -510,10 +522,20 @@ function RequestEmailButton({ name, role, email }: { name: string; role: string;
               </button>
             </div>
 
-            {/* The email address, with the kit's copy chip. */}
+            {/* The email address, with the kit's copy chip. Pattern-matched
+                addresses carry a leading star to match the list affordance. */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-200)', padding: 'var(--space-300)', borderRadius: 'var(--radius-md)', background: 'var(--surface-default-default-2)', border: '1px solid var(--border-default-default)' }}>
+              {pattern ? <Star size={14} weight="fill" aria-hidden style={{ flexShrink: 0, color: 'var(--text-warning, #b7791f)' }} /> : null}
               <EmailChip email={email} />
             </div>
+
+            {/* Provenance hint — only for pattern-matched (guessed) addresses. */}
+            {pattern ? (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-150)' }}>
+                <Star size={13} weight="fill" aria-hidden style={{ flexShrink: 0, marginTop: 2, color: 'var(--text-warning, #b7791f)' }} />
+                <Text variant="b3" as="p" style={{ margin: 0, color: 'var(--text-description)' }}>{patternHint}</Text>
+              </div>
+            ) : null}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-200)' }}>
               <Button variant="secondary-outline" size="sm" onClick={() => setOpen(false)}>Close</Button>
@@ -561,7 +583,7 @@ function PeopleList({ people }: { people: Person[] }) {
               <AddressLine size="b3">{p.location}</AddressLine>
             </>
           ) : null}
-          <RequestEmailButton name={p.name} role={p.role} email={p.email} linkedin={p.linkedin} />
+          <RequestEmailButton name={p.name} role={p.role} email={p.email} linkedin={p.linkedin} pattern={p.emailPattern} />
         </div>
       ))}
     </div>
@@ -685,7 +707,9 @@ function NeedsButton({ enabled, onOpen }: { enabled: boolean; onOpen: () => void
 // KeyPersons from Neo4j (KeyPerson-[:fills_role]->StakeholderRole), each with
 // their job title, location, LinkedIn and (where known) work email. Surfaced only
 // in the sales Value Network modal. No synthetic/fabricated identities.
-type Person = { name: string; role: string; location: string; linkedin: string; email: string }
+// `emailPattern` = the email was derived from the company's verified email
+// pattern (guessed), not a directly verified address. The UI stars it + hints.
+type Person = { name: string; role: string; location: string; linkedin: string; email: string; emailPattern?: boolean }
 
 // Detail panel for the selected tree node: level badge + name, the ancestry
 // path, the node's core functional job, the (MRI-only) product, and the buying
