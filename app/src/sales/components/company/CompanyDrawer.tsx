@@ -1,9 +1,73 @@
-import { X, Globe } from "@phosphor-icons/react";
-import { AddressLine, Badge, Scrollbar } from "@node42/ui-kit";
+import { X, Globe, MapPin } from "@phosphor-icons/react";
+import { AddressLine, Badge, Scrollbar, Text } from "@node42/ui-kit";
 import { LinkedInIcon } from "@/components/icons";
 import { CompanyDetail } from "./CompanyDetail";
 import { countryLabel as countryName } from "@/lib/market-query";
-import type { Company } from "@/lib/types";
+import type { Company, Location } from "@/lib/types";
+
+// The company's sites (HQ + offices), each with a "Show on map" button that flies
+// the on-page map to that location. Falls back to the flat HQ fields when the
+// `locations` array is empty.
+function LocationsSection({
+  company,
+  onShowLocation,
+}: {
+  company: Company;
+  onShowLocation?: (lat: number, lon: number) => void;
+}) {
+  const locations = company.locations ?? [];
+  type Row = Location & { _key: string };
+  let rows: Row[] = [];
+  if (locations.length > 0) {
+    rows = locations.map((loc, i) => ({ ...loc, _key: `${loc.role}-${loc.city}-${i}` }));
+  } else if (company.lat != null || company.city) {
+    rows = [{ role: "HQ", street: null, city: company.city, postcode: null, country: company.country, lat: company.lat, lon: company.lon, employeesHint: null, _key: "hq-flat" }];
+  }
+  if (rows.length === 0) return null;
+
+  return (
+    <section className="flex flex-col gap-2">
+      <Text variant="label-s" as="p" className="m-0">Locations</Text>
+      <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
+        {rows.map((loc) => {
+          const isHQ = loc.role === "HQ";
+          const hasCoords = loc.lat != null && loc.lon != null && !!onShowLocation;
+          return (
+            <li key={loc._key} className="flex items-start gap-2 rounded-md border border-[var(--line)] bg-[var(--bg-panel-2)] px-2.5 py-2">
+              <Badge variant={isHQ ? "color" : "neutral"} size="xs" className="mt-0.5 shrink-0">{isHQ ? "HQ" : "Office"}</Badge>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13px] font-medium leading-tight text-[var(--ink)]">
+                  {(() => {
+                    const country = loc.country ? countryName(loc.country) : "";
+                    // Avoid "Germany, Germany" when the source city equals the country.
+                    if (loc.city && country && loc.city !== country) return `${loc.city}, ${country}`;
+                    return loc.city || country || "—";
+                  })()}
+                </div>
+                {loc.street || loc.postcode ? (
+                  <div className="mt-0.5 truncate text-[11px] leading-tight text-[var(--dim)]">
+                    {[loc.street, loc.postcode].filter(Boolean).join(", ")}
+                  </div>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                disabled={!hasCoords}
+                onClick={() => { if (hasCoords) onShowLocation!(loc.lat as number, loc.lon as number); }}
+                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-[var(--line)] bg-[var(--bg-elev)] px-1.5 py-1 text-[10px] font-medium leading-none text-[var(--muted)] transition-colors hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label={`Show ${loc.city} on map`}
+                title={hasCoords ? `Show ${loc.city} on map` : "No coordinates on file"}
+              >
+                <MapPin size={12} />
+                <span>Show on map</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
 
 /**
  * Company detail panel — a faithful rebuild of the Figma "ClientCard"
@@ -134,6 +198,7 @@ export function CompanyDrawer({
       {/* Scrollable body — shared detail content (also used, laid out
           horizontally, in the expanded table row). */}
       <Scrollbar className="flex min-h-0 flex-1 flex-col gap-4">
+        <LocationsSection company={company} onShowLocation={onShowLocation} />
         <CompanyDetail company={company} />
       </Scrollbar>
     </aside>
