@@ -40,6 +40,7 @@ import type { VNNode } from './hospitalValueNetwork'
 import { odiNeeds } from './odiNeedsData'
 import marketData from './data/market.json'
 import odiIndex from './data/odi_index.json'
+import stakeholdersByUnitData from './data/stakeholders_by_unit.json'
 
 // Rated Sterile Fill-Finish units (unit name → ODI slug). Any value-network
 // node whose name is a rated unit shows an enabled "Needs & Jobs" button that
@@ -327,18 +328,24 @@ const ROLE_META: Record<string, { label: string; icon: Icon; desc: string }> = {
 }
 const ROLE_ORDER = ['job_executor', 'job_overseer', 'job_influencer', 'purchase_influencer', 'purchase_executor']
 
-// The buying centre is built purely from the analysed unit's real ODI
-// stakeholders. Roles with no stakeholders in the data (e.g. Job Influencer,
-// which the Sterile Fill-Finish export doesn't populate) drop out entirely.
-const stakeholderGroups = ROLE_ORDER.map((role) => ({
-  role,
-  label: ROLE_META[role].label,
-  icon: ROLE_META[role].icon,
-  desc: ROLE_META[role].desc,
-  roles: odiNeeds.stakeholders
-    .filter((s) => s.role === role)
-    .map((s) => ({ name: s.title, esco: s.esco_code, jobs: jobsByStakeholder[s.title] ?? emptyJobs })),
-})).filter((g) => g.roles.length)
+// The buying centre is built PER value-network unit from that unit's own ODI
+// stakeholders (each rated unit has a different buying centre). Roles with no
+// stakeholders for the unit drop out. `stakeholdersByUnit` is keyed by the unit's
+// ODI slug (see scripts/export_sff.py).
+type UnitStakeholder = { role: string; role_label: string; title: string; esco_code: string }
+const stakeholdersByUnit = stakeholdersByUnitData as Record<string, { name: string; level: string; stakeholders: UnitStakeholder[] }>
+
+function buildStakeholderGroups(stakeholders: UnitStakeholder[]) {
+  return ROLE_ORDER.map((role) => ({
+    role,
+    label: ROLE_META[role].label,
+    icon: ROLE_META[role].icon,
+    desc: ROLE_META[role].desc,
+    roles: stakeholders
+      .filter((s) => s.role === role)
+      .map((s) => ({ name: s.title, esco: s.esco_code, jobs: jobsByStakeholder[s.title] ?? emptyJobs })),
+  })).filter((g) => g.roles.length)
+}
 
 // --- Job life cycle -----------------------------------------------------------
 // A second lens on the SAME jobs surfaced under the stakeholders: instead of
@@ -814,6 +821,8 @@ function MarketDetail({ node, path, onSelect, onNeeds, modal, peopleByFunction }
   // deep-links to that unit's ODI page (/odi-matrix?unit=<slug>).
   const ratedSlug = data ? RATED_SLUG_BY_NAME.get(data.name) : undefined
   const isRated = !!ratedSlug
+  // This unit's own buying centre — each rated unit has different stakeholders.
+  const unitGroups = ratedSlug ? buildStakeholderGroups(stakeholdersByUnit[ratedSlug]?.stakeholders ?? []) : []
   // The products we sell at or under this segment — listed in Product Groups &
   // Products (so a higher level shows every product beneath it).
   // Our products at/under this segment, ordered by the UNSPSC group they belong to
@@ -979,11 +988,17 @@ function MarketDetail({ node, path, onSelect, onNeeds, modal, peopleByFunction }
           </Tab>
         </div>
         {buyingTab === 'stakeholders' ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-500)', width: '100%' }}>
-            {stakeholderGroups.map((g) => (
-              <StakeholderGroup key={g.role} label={g.label} icon={g.icon} desc={g.desc} roles={g.roles} withPeople={modal} functionKey={g.role} peopleByFunction={peopleByFunction} onNeeds={(stk?: string) => onNeeds(stk, ratedSlug)} />
-            ))}
-          </div>
+          unitGroups.length ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-500)', width: '100%' }}>
+              {unitGroups.map((g) => (
+                <StakeholderGroup key={g.role} label={g.label} icon={g.icon} desc={g.desc} roles={g.roles} withPeople={modal} functionKey={g.role} peopleByFunction={peopleByFunction} onNeeds={(stk?: string) => onNeeds(stk, ratedSlug)} />
+              ))}
+            </div>
+          ) : (
+            <Text variant="b3" as="p" style={{ margin: 0, color: 'var(--text-labels)' }}>
+              This value-network unit has no mapped buying centre yet. Open a rated L5 unit (the ones with a “Needs &amp; Jobs” button) to see its stakeholders.
+            </Text>
+          )
         ) : (
           <JobLifeCycleView />
         )}

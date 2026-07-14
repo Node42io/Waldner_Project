@@ -311,6 +311,7 @@ def main() -> int:
         # ---- write per-unit ODI + index --------------------------------
         odi_reg = SlugRegistry()
         index = []
+        stakeholders_by_unit = {}  # slug -> {name, level, stakeholders[]}
         default_slug = None
         best_top = None
         for uname in sorted(rows_by_unit.keys()):
@@ -350,6 +351,17 @@ def main() -> int:
                 "rows": rows,
             }
             write_json(PUB_ODI / f"{slug}.json", odi_obj)
+            # Compact per-unit buying centre (role/title/esco only) so the Market
+            # page + sales modal show THIS unit's stakeholders, not a fixed default.
+            stakeholders_by_unit[slug] = {
+                "name": uname,
+                "level": meta["level"],
+                "stakeholders": [
+                    {"role": s["role"], "role_label": s["role_label"],
+                     "title": s["title"], "esco_code": s["esco_code"]}
+                    for s in stakeholders
+                ],
+            }
             opps = [r["opp"] for r in rows if r["opp"] is not None]
             top = max(opps) if opps else None
             index.append(
@@ -380,6 +392,9 @@ def main() -> int:
         write_json(PUB_ODI / "index.json", index)
         # Bundled copy so the Market page can mark rated units + deep-link at build time.
         write_json(SRC_DATA / "odi_index.json", index)
+        # Per-unit buying centres (keyed by slug) — the Market page + sales modal
+        # render the SELECTED unit's stakeholders from this, not a fixed default.
+        write_json(SRC_DATA / "stakeholders_by_unit.json", stakeholders_by_unit)
         # Bundled default unit (highest top-opportunity) for the synchronous import.
         write_json(SRC_DATA / "odi_default.json", {**default_obj, "slug": default_slug})
 
