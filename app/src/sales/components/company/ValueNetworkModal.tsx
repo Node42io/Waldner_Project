@@ -19,12 +19,12 @@ import { ODIMatrixView } from "../../../ODIMatrix";
  */
 export function ValueNetworkModal({
   companyName,
-  peopleByFunction,
+  peopleByUnitRole,
   onClose,
 }: {
   companyName: string;
-  /** Real buying-centre people for this company, keyed by stakeholder-role title. */
-  peopleByFunction?: Record<string, { name: string; role: string; location: string; linkedin: string; email: string }[]>;
+  /** Real buying-centre people for this company, keyed by unit name -> role title. */
+  peopleByUnitRole?: Record<string, Record<string, { name: string; role: string; location: string; linkedin: string; email: string }[]>>;
   onClose: () => void;
 }) {
   const [showNeeds, setShowNeeds] = useState(false);
@@ -147,7 +147,7 @@ export function ValueNetworkModal({
                 setShowNeeds(true);
               }}
               modal
-              peopleByFunction={peopleByFunction}
+              peopleByUnitRole={peopleByUnitRole}
             />
           )}
         </Scrollbar>

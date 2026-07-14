@@ -22,8 +22,8 @@ export type Location = {
 };
 
 // A real buying-centre person (a Neo4j KeyPerson) shown in the Value Network
-// modal (matches the MarketPage `Person` shape). Grouped by buying-centre
-// function on the company (peopleByFunction).
+// modal (matches the MarketPage `Person` shape). Placed under the exact
+// stakeholder role they fill, per unit (peopleByUnitRole).
 export type RolePerson = {
   name: string;
   role: string;
@@ -89,11 +89,10 @@ export type Company = {
   logoUrl: string | null;
   // Real management profiles (joined from management.csv)
   contacts: ManagementProfile[];
-  // Real buying-centre people grouped by buying-centre function — job_executor,
-  // job_overseer, job_influencer, purchase_influencer, purchase_executor
-  // (KeyPerson-[:fills_role]->StakeholderRole.role in Neo4j). Drives the Value
-  // Network modal's buying centre. All real; no synthetic contacts.
-  peopleByFunction?: Record<string, RolePerson[]>;
+  // Real buying-centre people keyed by value-network unit name -> stakeholder
+  // role title (KeyPerson-[:fills_role]->StakeholderRole in Neo4j). Each person
+  // sits under the exact role they fill in that unit. All real; no synthetic.
+  peopleByUnitRole?: Record<string, Record<string, RolePerson[]>>;
   // Multi-site model: HQ (locations[0]) + each Crustdata office_address as
   // its own pin. Top-level `city`/`country`/`lat`/`lon` mirror the HQ. When
   // the company wasn't joined against Crustdata's office data, `locations`

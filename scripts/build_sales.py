@@ -275,28 +275,27 @@ def load_key_persons(session):
     return by_co
 
 
-def load_people_by_function(session):
-    """company(norm) -> { buying_centre_function: [Person] } from KeyPerson
-    -[:fills_role]->StakeholderRole (SFF). Keyed by the role's FUNCTION
-    (job_executor / job_overseer / job_influencer / purchase_influencer /
-    purchase_executor) rather than the specific role title — a company's people
-    map cleanly onto the five buying-centre functions, giving full real coverage.
-    Person shape matches the app's Person type: {name, role, location, linkedin,
-    email}, where `role` is the person's own job title."""
+def load_people_by_unit_role(session, rated_units):
+    """company(norm) -> { unit_name: { stakeholder_role_title: [Person] } } from
+    KeyPerson-[:fills_role]->StakeholderRole (SFF). Keyed by the SPECIFIC value-
+    network unit AND role title, so each person sits under the exact stakeholder
+    role they fill in that unit (not just the buying-centre function). Restricted
+    to the rated units that actually render a buying centre. Person shape matches
+    the app's Person type: {name, role, location, linkedin, email}, where `role`
+    is the person's own job title."""
     by_co = {}
     for r in session.run(
         "MATCH (c:Company)-[:in_lead_list]->(:LeadList) "
-        "MATCH (k:KeyPerson)-[:works_at]->(c) "
-        "MATCH (k)-[:fills_role]->(sr:StakeholderRole {value_network:$net}) "
-        "RETURN c.name AS company, sr.role AS func, k.full_name AS name, "
-        "k.title AS title, k.residence_location AS residence, k.work_site AS work_site, "
-        "k.linkedin_url AS linkedin, k.profile_url AS profile, k.work_email AS email, "
-        "k.is_top_contact AS top, k.seniority AS seniority, k.num_connections AS conns",
+        "MATCH (c)<-[:works_at]-(k:KeyPerson)-[:fills_role]->(sr:StakeholderRole {value_network:$net}) "
+        "RETURN c.name AS company, sr.unit_name AS unit, sr.title AS role, "
+        "k.full_name AS name, k.title AS title, k.residence_location AS residence, "
+        "k.work_site AS work_site, k.linkedin_url AS linkedin, k.profile_url AS profile, "
+        "k.work_email AS email, k.is_top_contact AS top, k.seniority AS seniority, "
+        "k.num_connections AS conns",
         net="325412/Sterile Fill-Finish",
     ):
-        co = norm(r["company"])
-        func = r["func"]
-        if not func:
+        unit, role = r["unit"], r["role"]
+        if not unit or not role or unit not in rated_units:
             continue
         person = {
             "name": r["name"] or "",
@@ -308,21 +307,22 @@ def load_people_by_function(session):
             "_rank": SENIORITY_RANK.get(r["seniority"] or "", 7),
             "_conns": r["conns"] or 0,
         }
-        by_co.setdefault(co, {}).setdefault(func, []).append(person)
-    # dedupe a person within a function, rank (top contacts, seniority, connections)
-    for co, funcs in by_co.items():
-        for func, people in funcs.items():
-            seen, out = set(), []
-            for p in people:
-                key = p["linkedin"] or p["name"]
-                if key in seen:
-                    continue
-                seen.add(key)
-                out.append(p)
-            out.sort(key=lambda p: (0 if p["_top"] else 1, p["_rank"], -p["_conns"]))
-            for p in out:
-                del p["_top"], p["_rank"], p["_conns"]
-            funcs[func] = out[:8]
+        by_co.setdefault(norm(r["company"]), {}).setdefault(unit, {}).setdefault(role, []).append(person)
+    # dedupe a person within a (unit, role), rank, cap 6
+    for co, units in by_co.items():
+        for unit, roles in units.items():
+            for role, people in roles.items():
+                seen, out = set(), []
+                for p in people:
+                    key = p["linkedin"] or p["name"]
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    out.append(p)
+                out.sort(key=lambda p: (0 if p["_top"] else 1, p["_rank"], -p["_conns"]))
+                for p in out:
+                    del p["_top"], p["_rank"], p["_conns"]
+                roles[role] = out[:6]
     return by_co
 
 
@@ -339,7 +339,7 @@ def to_int(v):
 
 
 # ---------------------------------------------------------------- build
-def build_company(lead, cj, enr, mgmt, key_persons, people_by_func, allow_online):
+def build_company(lead, cj, enr, mgmt, key_persons, people_by_unit_role, allow_online):
     name = lead["name"]
     site = lead.get("dach_site")
     # Pin the account at its DACH plant: country from the site text, not the
@@ -413,10 +413,10 @@ def build_company(lead, cj, enr, mgmt, key_persons, people_by_func, allow_online
         "roleQaPct": pick((rec or {}).get("roleQaPct"), num((e or {}).get("role_qa_pct")) if e else None),
         "logoUrl": (rec or {}).get("logoUrl"),
         "contacts": contacts,
-        # Real buying-centre people, keyed by SFF buying-centre function
-        # (KeyPerson-[:fills_role]->StakeholderRole.role). Surfaced in the Value
-        # Network modal's buying centre. All real; no synthetic contacts.
-        "peopleByFunction": people_by_func.get(n, {}),
+        # Real buying-centre people, keyed by unit name -> stakeholder role
+        # title (KeyPerson-[:fills_role]->StakeholderRole). Each person sits under
+        # the exact role they fill in that unit. All real; no synthetic contacts.
+        "peopleByUnitRole": people_by_unit_role.get(n, {}),
         "locations": (rec or {}).get("locations") or (
             [{"role": "HQ", "street": None, "city": city, "postcode": None,
               "country": iso, "lat": lat, "lon": lon, "employeesHint": None}] if (lat and lon) else []
@@ -435,7 +435,14 @@ def main() -> int:
     cj = load_companies_json()
     enr = load_enriched()
     mgmt = load_management()
-    print(f"loaded: companies.json={len(cj)}  enriched={len(enr)}  mgmt-companies={len(mgmt)}  geocache={len(_geo_cache)}")
+    # Rated units that render a buying centre (from export_sff.py) — people are
+    # only attached under those units' roles. Run export_sff.py first.
+    sbu_path = APP_DIR / "src" / "data" / "stakeholders_by_unit.json"
+    rated_units = set()
+    if sbu_path.exists():
+        rated_units = {v["name"] for v in json.load(open(sbu_path)).values()}
+    print(f"loaded: companies.json={len(cj)}  enriched={len(enr)}  mgmt-companies={len(mgmt)}  "
+          f"geocache={len(_geo_cache)}  rated-units={len(rated_units)}")
 
     driver = GraphDatabase.driver(
         os.environ["NEO4J_URI"],
@@ -449,17 +456,17 @@ def main() -> int:
             "c.lead_status AS lead_status ORDER BY c.name"
         )]
         key_persons = load_key_persons(s)
-        people_by_func = load_people_by_function(s)
+        people_by_unit_role = load_people_by_unit_role(s, rated_units)
     driver.close()
     kp_total = sum(len(v) for v in key_persons.values())
-    role_links = sum(len(p) for roles in people_by_func.values() for p in roles.values())
+    role_links = sum(len(p) for units in people_by_unit_role.values() for roles in units.values() for p in roles.values())
     print(f"validated targets: {len(leads)}  |  KeyPersons: {kp_total} across {len(key_persons)} companies"
           f"  |  buying-centre people-role slots: {role_links}")
 
     companies = []
     matched = geocoded = with_contacts = 0
     for lead in leads:
-        c = build_company(lead, cj, enr, mgmt, key_persons, people_by_func, allow_online)
+        c = build_company(lead, cj, enr, mgmt, key_persons, people_by_unit_role, allow_online)
         companies.append(c)
         if norm(lead["name"]) in cj or norm(lead["name"]) in enr:
             matched += 1

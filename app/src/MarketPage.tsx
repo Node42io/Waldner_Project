@@ -684,9 +684,10 @@ function PeopleList({ people }: { people: Person[] }) {
   )
 }
 
-// One stakeholder role: name + ESCO link + a button that opens its Needs & Jobs.
-// (Real people are listed once per buying-centre function, not per role.)
-function StakeholderCard({ name, esco, onNeeds }: { name: string; esco: string; onNeeds: (stk: string) => void }) {
+// One stakeholder role: name + ESCO link + a Needs & Jobs button, and — in the
+// sales modal — the REAL people at this account who fill THIS role in THIS unit
+// (KeyPerson-[:fills_role]->StakeholderRole), listed right under the role.
+function StakeholderCard({ name, esco, people, onNeeds }: { name: string; esco: string; people?: Person[]; onNeeds: (stk: string) => void }) {
   const [hover, setHover] = useState(false)
   return (
     <div
@@ -723,15 +724,14 @@ function StakeholderCard({ name, esco, onNeeds }: { name: string; esco: string; 
             View Needs & Jobs
           </Button>
         </div>
+        {/* Real people filling this exact role at this account (sales modal). */}
+        {people && people.length ? <PeopleList people={people} /> : null}
       </div>
     </div>
   )
 }
 
-function StakeholderGroup({ label, icon: RoleIcon, desc, roles, withPeople, functionKey, peopleByFunction, onNeeds }: { label: string; icon: Icon; desc: string; roles: { name: string; esco: string; jobs: StakeholderJobs }[]; withPeople?: boolean; functionKey?: string; peopleByFunction?: Record<string, Person[]>; onNeeds: (stk: string) => void }) {
-  // Real people at this company who sit in this buying-centre function
-  // (KeyPerson-[:fills_role]->StakeholderRole.role). Shown only in the sales modal.
-  const people = withPeople && functionKey ? (peopleByFunction?.[functionKey] ?? []) : []
+function StakeholderGroup({ label, icon: RoleIcon, desc, roles, withPeople, peopleByRole, onNeeds }: { label: string; icon: Icon; desc: string; roles: { name: string; esco: string; jobs: StakeholderJobs }[]; withPeople?: boolean; peopleByRole?: Record<string, Person[]>; onNeeds: (stk: string) => void }) {
   // A left rail brackets the header + its cards so the group reads as one unit
   // without a full card container.
   return (
@@ -740,24 +740,17 @@ function StakeholderGroup({ label, icon: RoleIcon, desc, roles, withPeople, func
       <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-100)', flexWrap: 'wrap', minWidth: 0 }}>
         <RoleIcon size={14} weight="regular" style={{ flexShrink: 0 }} />
         <Text variant="b3" weight="medium" as="span">{label}</Text>
-        <Badge variant="neutral" size="xs">{withPeople ? people.length : roles.length}</Badge>
+        <Badge variant="neutral" size="xs">{roles.length}</Badge>
         <span style={{ width: 'var(--space-100)', height: 'var(--space-100)', borderRadius: '50%', background: 'var(--icon-description)', flexShrink: 0 }} />
         <Text variant="b3" as="span" style={{ color: 'var(--text-description)' }}>{desc}</Text>
       </span>
-      {/* Real people at this account in this function (sales modal only). */}
-      {withPeople ? (
-        people.length ? (
-          <PeopleList people={people} />
-        ) : (
-          <Text variant="b3" as="span" style={{ color: 'var(--text-labels)' }}>No key people identified for this function yet.</Text>
-        )
-      ) : null}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-200)', width: '100%', minWidth: 0 }}>
         {roles.map((role) => (
           <StakeholderCard
             key={role.name}
             name={role.name}
             esco={role.esco}
+            people={withPeople ? peopleByRole?.[role.name] : undefined}
             onNeeds={onNeeds}
           />
         ))}
@@ -815,7 +808,7 @@ type Person = { name: string; role: string; location: string; linkedin: string; 
 // centre. The Needs button jumps to the ODI matrix for the MRI product.
 // `modal` = rendered inside the sales Value Network modal: it pairs each
 // stakeholder with a named contact person and force-enables the Needs button.
-function MarketDetail({ node, path, onSelect, onNeeds, modal, peopleByFunction }: { node: TreeNode; path: TreeNode[]; onSelect: (node: TreeNode) => void; onNeeds: (stk?: string, slug?: string) => void; modal?: boolean; peopleByFunction?: Record<string, Person[]> }) {
+function MarketDetail({ node, path, onSelect, onNeeds, modal, peopleByUnitRole }: { node: TreeNode; path: TreeNode[]; onSelect: (node: TreeNode) => void; onNeeds: (stk?: string, slug?: string) => void; modal?: boolean; peopleByUnitRole?: Record<string, Record<string, Person[]>> }) {
   const data = nodeById.get(node.id)
   // A node is "analysed" if its unit has ODI ratings — its Needs button then
   // deep-links to that unit's ODI page (/odi-matrix?unit=<slug>).
@@ -823,6 +816,9 @@ function MarketDetail({ node, path, onSelect, onNeeds, modal, peopleByFunction }
   const isRated = !!ratedSlug
   // This unit's own buying centre — each rated unit has different stakeholders.
   const unitGroups = ratedSlug ? buildStakeholderGroups(stakeholdersByUnit[ratedSlug]?.stakeholders ?? []) : []
+  // Real people at this account for THIS unit, keyed by stakeholder-role title
+  // (sales modal only). Each role card shows the people who fill that exact role.
+  const unitRolePeople = modal && data ? (peopleByUnitRole?.[data.name] ?? {}) : {}
   // The products we sell at or under this segment — listed in Product Groups &
   // Products (so a higher level shows every product beneath it).
   // Our products at/under this segment, ordered by the UNSPSC group they belong to
@@ -991,7 +987,7 @@ function MarketDetail({ node, path, onSelect, onNeeds, modal, peopleByFunction }
           unitGroups.length ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-500)', width: '100%' }}>
               {unitGroups.map((g) => (
-                <StakeholderGroup key={g.role} label={g.label} icon={g.icon} desc={g.desc} roles={g.roles} withPeople={modal} functionKey={g.role} peopleByFunction={peopleByFunction} onNeeds={(stk?: string) => onNeeds(stk, ratedSlug)} />
+                <StakeholderGroup key={g.role} label={g.label} icon={g.icon} desc={g.desc} roles={g.roles} withPeople={modal} peopleByRole={unitRolePeople} onNeeds={(stk?: string) => onNeeds(stk, ratedSlug)} />
               ))}
             </div>
           ) : (
@@ -1100,7 +1096,7 @@ function ResizableDivider({ width, setWidth, min, max }: { width: number; setWid
 // sales Value Network modal. `onNeeds` handles the detail's Needs button;
 // `modal` = rendered in the sales modal (pairs stakeholders with contact people
 // and force-enables the Needs button).
-export function ValueNetworkView({ onNeeds, modal, initialSelectedId, peopleByFunction }: { onNeeds: (stk?: string, slug?: string) => void; modal?: boolean; initialSelectedId?: string; peopleByFunction?: Record<string, Person[]> }) {
+export function ValueNetworkView({ onNeeds, modal, initialSelectedId, peopleByUnitRole }: { onNeeds: (stk?: string, slug?: string) => void; modal?: boolean; initialSelectedId?: string; peopleByUnitRole?: Record<string, Record<string, Person[]>> }) {
   // Open focused on a specific node (e.g. a product picked in the coverage view),
   // falling back to the root. Its ancestor chain seeds the tree's expanded set so
   // the node is visible on mount.
@@ -1207,7 +1203,7 @@ export function ValueNetworkView({ onNeeds, modal, initialSelectedId, peopleByFu
           onSelect={(n) => { setSelected(n); if (n.id !== selected.id) setShowProducts(false) }}
           onNeeds={onNeeds}
           modal={modal}
-          peopleByFunction={peopleByFunction}
+          peopleByUnitRole={peopleByUnitRole}
         />
       </div>
     </div>
