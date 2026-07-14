@@ -41,6 +41,7 @@ import { odiNeeds } from './odiNeedsData'
 import marketData from './data/market.json'
 import odiIndex from './data/odi_index.json'
 import stakeholdersByUnitData from './data/stakeholders_by_unit.json'
+import productJobsByUnitData from './data/product_jobs_by_unit.json'
 
 // Rated Sterile Fill-Finish units (unit name → ODI slug). Any value-network
 // node whose name is a rated unit shows an enabled "Needs & Jobs" button that
@@ -48,7 +49,6 @@ import stakeholdersByUnitData from './data/stakeholders_by_unit.json'
 const RATED_SLUG_BY_NAME = new Map<string, string>(
   (odiIndex as { unit_name: string; slug: string }[]).map((u) => [u.unit_name, u.slug]),
 )
-import { jobsByStage } from './lifecycle'
 import type { LifecycleStage } from './lifecycle'
 
 // "Market Page" — the General Medical & Surgical Hospitals market (NAICS 622110),
@@ -354,105 +354,41 @@ function buildStakeholderGroups(stakeholders: UnitStakeholder[]) {
 // export carries no lifecycle tag, so the stage is assigned here per job. Any
 // job missing from the seed falls back to Usage so nothing is silently dropped.
 
+// A real product job (Burleson L1) for a unit, bucketed by lifecycle stage.
+type ProductJob = { name: string; statement: string; description: string; userGroup: string; frequency: string; kind: string }
+const productJobsByUnit = productJobsByUnitData as Record<string, Partial<Record<LifecycleStage, ProductJob[]>>>
+
 const LIFECYCLE_STAGES: { key: LifecycleStage; label: string; icon: Icon; desc: string }[] = [
-  { key: 'acquisition', label: 'Acquisition', icon: ShoppingCart, desc: 'Deciding, specifying and buying the system.' },
-  { key: 'preparation', label: 'Preparation', icon: ClipboardText, desc: 'Readying the patient and the exam.' },
-  { key: 'usage', label: 'Usage', icon: Pulse, desc: 'Running scans and producing the diagnosis.' },
+  { key: 'acquisition', label: 'Acquisition', icon: ShoppingCart, desc: 'Specifying, sourcing and buying the system.' },
+  { key: 'preparation', label: 'Preparation', icon: ClipboardText, desc: 'Installing, qualifying and readying the system.' },
+  { key: 'usage', label: 'Usage', icon: Pulse, desc: 'Operating the system to do its job.' },
   { key: 'maintenance', label: 'Maintenance', icon: Wrench, desc: 'Keeping the system and team performing.' },
   { key: 'disposal', label: 'Disposal', icon: Trash, desc: 'Retiring and replacing the system.' },
 ]
 
-// Each job belongs to exactly one stakeholder in the ODI export (1:1) — the
-// "corresponding stakeholder" surfaced beside the job in the Life Cycle view.
-const jobStakeholder: Record<string, string> = (() => {
-  const m: Record<string, string> = {}
-  for (const r of odiNeeds.rows) if (!m[r.source_job]) m[r.source_job] = r.stk
-  return m
-})()
-
-// Authored one-line descriptions per job (the ODI export has no job description
-// field). Keyed by the exact source_job string.
-const JOB_DESC: Record<string, string> = {
-  // MRI Technologist
-  'Position Patient Accurately': 'Place and align the patient so the target anatomy sits correctly in the scanner.',
-  'Execute Imaging Sequences': 'Select and run the right scan protocol for the requested study.',
-  'Ensure Image Quality': 'Produce diagnostic-grade images free of motion and artifacts.',
-  'Adapt to Patient Constraints': "Adjust the exam for patients who can't tolerate the standard procedure.",
-  'Optimize Exam Throughput': 'Keep the scanner schedule moving without sacrificing quality.',
-  'Administer Contrast Agents': 'Deliver contrast safely and at the right moment during the exam.',
-  'feel confident the scan is diagnostic': 'Trust that the acquired scan will actually answer the clinical question.',
-  'feel reassured the patient is safe': 'Know the patient is protected throughout the exam.',
-  'Trusted Diagnostic Image Authority': 'Be seen as the technologist whose images clinicians can rely on.',
-  // Radiologist
-  'Detect tissue abnormalities': 'Identify pathology across the images in the study.',
-  'Differentiate ambiguous tissue': 'Distinguish benign from significant findings when they look alike.',
-  'Confirm image adequacy': 'Judge whether the images are sufficient to report on.',
-  'feel confident in the read': "Trust one's own interpretation of the study.",
-  'feel reassured nothing was missed': 'Be confident no significant finding was overlooked.',
-  'Definitive Diagnostic Authority': 'Be the final word on what the images show.',
-  // Director of Radiology / Imaging Services
-  'Ensure Imaging Reliability': 'Keep imaging services dependable and consistently available.',
-  'Justify Capital Investment': 'Make the case for acquiring or replacing imaging equipment.',
-  'Sustain Workforce Capability': 'Keep the department staffed with capable, trained people.',
-  'Demonstrate Department Performance': 'Show the department is meeting its clinical and operational targets.',
-  'feel confident throughput will hold': 'Trust the department can sustain its patient volume.',
-  'feel reassured metrics stand up': 'Be confident the reported performance figures survive scrutiny.',
-  'The Dependable Imaging Steward': 'Be recognised as the reliable steward of the imaging service.',
-  // MRI Safety Officer (MRSO)
-  'Prevent Projectile Incidents': 'Stop ferromagnetic objects from entering the magnet room.',
-  'Verify Patient Safety Screening': 'Confirm every patient is screened for MRI contraindications.',
-  'Adjudicate Implant Safety': "Decide whether a patient's implant is safe to scan.",
-  'Ensure Staff Competency': 'Keep staff trained and competent in MRI safety.',
-  'Uncompromising Guardian of MRI Safety': 'Be the uncompromising authority on MRI safety.',
-  // Clinical/Biomedical Imaging Physicist
-  'Diagnose image degradation': 'Pinpoint the cause when image quality drifts.',
-  'Verify performance conformance': 'Confirm the system performs to its technical specification.',
-  'Substantiate recommendation': 'Back a technical recommendation with measured evidence.',
-  'feel confident in the specification': 'Trust that the chosen technical spec is right.',
-  'feel reassured performance holds': "Be confident the system's performance is stable over time.",
-  'Trusted Imaging Performance Authority': 'Be the trusted authority on imaging performance.',
-  // Biomedical / Clinical Engineering Manager
-  'Sustain System Uptime': 'Keep the scanner running and minimise downtime.',
-  'Define Technical Criteria': 'Set the technical requirements the system must meet.',
-  'feel confident uptime holds': "Trust the system will stay up when it's needed.",
-  'feel reassured the fit is sound': 'Be confident the equipment fits the site and infrastructure.',
-  'Trusted Infrastructure Steward': 'Be the reliable steward of the imaging infrastructure.',
-  // Referring Physician / Clinical Specialty Lead
-  'Translate Symptoms to Questions': "Turn a patient's presentation into a precise imaging question.",
-  'Determine Imaging Need': 'Decide whether and which imaging is warranted.',
-  'Safeguard Patient Suitability': 'Ensure the patient is appropriate for the requested exam.',
-  'Resolve Ambiguous Findings': 'Get clarity when a report leaves the diagnosis open.',
-  'Maintain Referral Confidence': 'Keep trust in the imaging service they refer to.',
-  'feel confident in the referral': 'Trust that referring for imaging was the right call.',
-  'feel reassured the answer will come back': 'Be confident a usable answer will return in time.',
-  'The Definitive Diagnostician': 'Be the clinician who reaches the definitive diagnosis.',
-  // Hospital Capital Equipment Procurement Manager
-  'Define Procurement Requirements': 'Specify what the purchase must deliver.',
-  'Solicit Competitive Bids': 'Run a competitive process across vendors.',
-  'Minimize Total Cost of Ownership': 'Keep the lifetime cost of the asset as low as possible.',
-  'Justify the Financial Case': 'Build the financial justification for the purchase.',
-  'feel confident the deal holds up': 'Trust the negotiated deal will stand.',
-  'feel in control of the negotiation': 'Stay in command of the vendor negotiation.',
-  'The Shrewd Steward of Capital': "Be seen as the shrewd steward of the hospital's capital.",
-  // Chief Financial Officer / Capital Budget Authority
-  'Optimize Capital Allocation': 'Direct capital to its highest-return use across the hospital.',
-  'Verify Return Realization': 'Confirm the investment actually delivers its promised return.',
-  'feel confident in the allocation call': 'Trust the capital-allocation decision was sound.',
-  'feel reassured the payback is landing': 'Be confident the payback is materialising as planned.',
-  'Disciplined Steward of Capital': "Be the disciplined steward of the organisation's capital.",
-}
 
 // One selectable lifecycle-stage box in the acquisition → … → disposal chain.
 // Clicking it reveals that stage's jobs below (see JobLifeCycleView).
 // Job Life Cycle tab — the five stages as a clickable acquisition → … → disposal
 // chain. Selecting a stage reveals its jobs below, each with title, description
 // and the corresponding stakeholder.
-function JobLifeCycleView() {
-  // Acquisition is selected by default (its jobs show on open); the other stages
-  // work as before — click to reveal (or toggle off) their jobs.
-  const [selected, setSelected] = useState<LifecycleStage | null>(LIFECYCLE_STAGES[0].key)
+function JobLifeCycleView({ jobs }: { jobs: Partial<Record<LifecycleStage, ProductJob[]>> }) {
+  const count = (k: LifecycleStage) => jobs[k]?.length ?? 0
+  const total = LIFECYCLE_STAGES.reduce((n, st) => n + count(st.key), 0)
+  // Default to the first stage that actually has jobs.
+  const firstWithJobs = LIFECYCLE_STAGES.find((st) => count(st.key) > 0)?.key ?? null
+  const [selected, setSelected] = useState<LifecycleStage | null>(firstWithJobs)
   const active = LIFECYCLE_STAGES.find((s) => s.key === selected)
-  const jobs = selected ? jobsByStage[selected] : []
+  const stageJobs = selected ? (jobs[selected] ?? []) : []
+
+  if (total === 0) {
+    return (
+      <Text variant="b3" as="p" style={{ margin: 0, color: 'var(--text-labels)' }}>
+        No product jobs mapped to this unit. Open a unit Waldner sells a product into to see its product life-cycle jobs.
+      </Text>
+    )
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-400)', width: '100%' }}>
       {/* Clickable stage chain — select one to reveal its jobs below. */}
@@ -467,7 +403,7 @@ function JobLifeCycleView() {
             <StageBox
               icon={<st.icon size={14} weight="regular" />}
               label={st.label}
-              count={jobsByStage[st.key].length}
+              count={count(st.key)}
               selected={selected === st.key}
               title={`${st.label} — ${st.desc}`}
               onClick={() => setSelected((prev) => (prev === st.key ? null : st.key))}
@@ -481,28 +417,28 @@ function JobLifeCycleView() {
           <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-100)', flexWrap: 'wrap', minWidth: 0 }}>
             <active.icon size={14} weight="regular" style={{ flexShrink: 0 }} />
             <Text variant="b3" weight="medium" as="span">{active.label}</Text>
-            <Badge variant="neutral" size="xs">{jobs.length}</Badge>
+            <Badge variant="neutral" size="xs">{stageJobs.length}</Badge>
             <span style={{ width: 'var(--space-100)', height: 'var(--space-100)', borderRadius: '50%', background: 'var(--icon-description)', flexShrink: 0 }} />
             <Text variant="b3" as="span" style={{ color: 'var(--text-description)' }}>{active.desc}</Text>
           </span>
-          {jobs.length ? (
+          {stageJobs.length ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-200)', width: '100%', minWidth: 0 }}>
-              {jobs.map((j) => (
+              {stageJobs.map((j) => (
                 <JobEntry
-                  key={j}
-                  title={j}
-                  description={JOB_DESC[j] ?? ''}
-                  meta={jobStakeholder[j] ?? '—'}
+                  key={j.name}
+                  title={j.name}
+                  description={j.statement || j.description}
+                  meta={j.userGroup || '—'}
                   metaIcon={<UsersThree size={13} weight="regular" />}
                 />
               ))}
             </div>
           ) : (
-            <Text variant="b3" as="span" style={{ color: 'var(--text-description)', fontStyle: 'italic' }}>No jobs mapped to this stage yet.</Text>
+            <Text variant="b3" as="span" style={{ color: 'var(--text-description)', fontStyle: 'italic' }}>No product jobs in this stage.</Text>
           )}
         </div>
       ) : (
-        <Text variant="b3" as="span" style={{ color: 'var(--text-description)', fontStyle: 'italic' }}>Select a stage above to see its jobs.</Text>
+        <Text variant="b3" as="span" style={{ color: 'var(--text-description)', fontStyle: 'italic' }}>Select a stage above to see its product jobs.</Text>
       )}
     </div>
   )
@@ -996,7 +932,7 @@ function MarketDetail({ node, path, onSelect, onNeeds, modal, peopleByUnitRole }
             </Text>
           )
         ) : (
-          <JobLifeCycleView />
+          <JobLifeCycleView key={node.id} jobs={data ? (productJobsByUnit[data.name] ?? {}) : {}} />
         )}
       </div>
     </div>

@@ -236,6 +236,43 @@ def main() -> int:
         ]
         group_count = len({(g["code"], g["name"]) for g in prod_group.values()})
 
+        # ---- Product jobs per unit (Burleson L1, by lifecycle category) ----
+        # unit <- matched Waldner product <- in_product_group -> has_product_job.
+        # Bucketed by lifecycle category (Acquisition/Preparation/Usage/
+        # Maintenance/Disposal) for the Product Life Cycle tab.
+        CAT_KEY = {"Acquisition": "acquisition", "Preparation": "preparation",
+                   "Usage": "usage", "Maintenance": "maintenance", "Disposal": "disposal"}
+        pj_by_unit = defaultdict(lambda: defaultdict(list))  # unit -> stage -> [job]
+        pj_seen = defaultdict(set)  # (unit, stage) -> {name}
+        for rec in s.run(
+            "MATCH (c:Company {name:$owner})-[:has_product]->(p:Product)"
+            "-[:matches_vn_unit]->(u:ValueNetworkUnit {value_network:$net}) "
+            "MATCH (p)-[:in_product_group]->(:ProductGroup)-[:has_product_job]->(pj:ProductJob) "
+            "RETURN u.name AS unit, pj.category AS cat, pj.name AS name, "
+            "pj.statement AS stmt, pj.description AS descr, pj.user_group AS ug, "
+            "pj.frequency AS freq, pj.lifecycle_kind AS kind "
+            "ORDER BY pj.name",
+            owner=OWNER_COMPANY, net=NETWORK,
+        ):
+            stage = CAT_KEY.get(rec["cat"])
+            name = rec["name"]
+            if not stage or not name:
+                continue
+            k = (rec["unit"], stage)
+            if name in pj_seen[k]:
+                continue
+            pj_seen[k].add(name)
+            pj_by_unit[rec["unit"]][stage].append({
+                "name": name,
+                "statement": rec["stmt"] or "",
+                "description": rec["descr"] or "",
+                "userGroup": rec["ug"] or "",
+                "frequency": rec["freq"] or "",
+                "kind": rec["kind"] or "",
+            })
+        product_jobs_by_unit = {u: dict(stages) for u, stages in pj_by_unit.items()}
+        pj_total = sum(len(v) for stages in product_jobs_by_unit.values() for v in stages.values())
+
         # ---- ODI rows: unit -> stakeholder role -> error statement -----
         rows_by_unit = defaultdict(list)
         sr_by_unit = defaultdict(dict)  # unit -> {sr_eid: stakeholder}
@@ -395,6 +432,8 @@ def main() -> int:
         # Per-unit buying centres (keyed by slug) — the Market page + sales modal
         # render the SELECTED unit's stakeholders from this, not a fixed default.
         write_json(SRC_DATA / "stakeholders_by_unit.json", stakeholders_by_unit)
+        # Per-unit product jobs (keyed by unit name) for the Product Life Cycle tab.
+        write_json(SRC_DATA / "product_jobs_by_unit.json", product_jobs_by_unit)
         # Bundled default unit (highest top-opportunity) for the synchronous import.
         write_json(SRC_DATA / "odi_default.json", {**default_obj, "slug": default_slug})
 
@@ -416,7 +455,8 @@ def main() -> int:
 
     driver.close()
     print(f"\nrated units: {len(rows_by_unit)}   products matched: {len(products)}   "
-          f"product groups: {group_count}   default ODI unit: {default_slug} (top opp {best_top})")
+          f"product groups: {group_count}   product-job units: {len(product_jobs_by_unit)} ({pj_total} jobs)   "
+          f"default ODI unit: {default_slug} (top opp {best_top})")
     if notes:
         print("NOTES:")
         for n in notes:
