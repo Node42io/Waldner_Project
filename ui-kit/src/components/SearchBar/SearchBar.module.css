@@ -1,0 +1,31 @@
+/* SearchBar is now a thin wrapper over InputField (box/border/focus/height live
+   there). This file only owns the fixed toolbar width per size; consumers can
+   override the width via a className on the wrapper (e.g. width: 100%). */
+.wrap {
+  display: inline-block;
+}
+
+.size-xs {
+  width: 180px;
+}
+
+.size-sm {
+  width: 220px;
+}
+
+/* Trailing clear (×) — shown while there's a value. Sits in InputField's
+   trailing slot; the icon inherits a muted tone and lifts on hover. */
+.clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--icon-description);
+  cursor: pointer;
+}
+
+.clear:hover {
+  color: var(--icon-body);
+}

@@ -1,0 +1,89 @@
+.address {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-100);
+  min-width: 0;
+  max-width: 100%;
+  color: var(--text-description);
+  text-decoration: none;
+}
+
+/* ---------- Pin ---------- */
+.pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--text-labels);
+}
+
+.pin svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* ---------- Address text (single line, ellipsised) ---------- */
+.text {
+  min-width: 0;
+  flex: 0 1 auto;
+  font-family: var(--font-family-sans);
+  font-weight: var(--font-weight-regular);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.size-b3 .text {
+  font-size: var(--font-size-b3);
+  line-height: var(--line-height-b3);
+  letter-spacing: var(--letter-spacing-b3);
+}
+
+.size-b2 .text {
+  font-size: var(--font-size-b2);
+  line-height: var(--line-height-b2);
+  letter-spacing: var(--letter-spacing-b2);
+}
+
+/* ---------- Button reset (in-page locate variant) ---------- */
+/* Rendered as a <button> when `onLocate` is set; strip the native chrome and
+   keep the click target to the content (pin + text) only. */
+.button {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  text-align: left;
+  width: fit-content;
+  max-width: 100%;
+}
+
+/* ---------- Clickable (map link) ---------- */
+.link {
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.link:hover,
+.link:focus-visible {
+  color: var(--text-link);
+}
+
+.link:hover .pin,
+.link:focus-visible .pin {
+  color: var(--text-link);
+}
+
+.link:hover .text {
+  text-decoration: underline;
+}
+
+.link:focus-visible {
+  outline: none;
+  border-radius: var(--radius-xs);
+  box-shadow: var(--shadow-focus);
+}

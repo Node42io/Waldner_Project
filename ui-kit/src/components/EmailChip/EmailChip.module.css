@@ -1,0 +1,54 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-100);
+  min-width: 0;
+}
+
+.leadIcon {
+  flex-shrink: 0;
+  color: var(--icon-description);
+}
+
+.link {
+  color: var(--text-body);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-b3);
+  line-height: var(--line-height-b3);
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--space-400);
+  height: var(--space-400);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  cursor: pointer;
+  color: var(--icon-description);
+  transition: color 120ms ease;
+}
+
+.copy:hover {
+  color: var(--text-body);
+}
+
+.copied {
+  color: var(--text-success);
+}
+
+.copied:hover {
+  color: var(--text-success);
+}

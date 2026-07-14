@@ -1,0 +1,108 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-200);
+  padding: var(--space-300);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--surface-default-default);
+  transition:
+    background-color var(--duration-fast) var(--easing-standard),
+    border-color var(--duration-fast) var(--easing-standard);
+}
+
+/* ---------- Interactive states (clickable / selectable card) ---------- */
+.interactive {
+  cursor: pointer;
+}
+
+.interactive:hover {
+  background: var(--surface-default-hover);
+}
+
+.interactive:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.interactive:active {
+  background: var(--surface-default-selected);
+}
+
+/* Selected wins over hover/active: accent border + neutral selected surface. */
+.selected,
+.interactive.selected:hover,
+.interactive.selected:active {
+  border-color: var(--border-default-selected);
+  background: var(--surface-default-selected);
+}
+
+/* ---------- Header (name + location) ---------- */
+.header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-100);
+  width: 100%;
+}
+
+/* Aeonik Medium / B1. */
+.name {
+  margin: 0;
+  font-family: var(--font-family-sans);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-b1);
+  line-height: var(--line-height-b1);
+  letter-spacing: var(--letter-spacing-b1);
+  color: var(--text-body);
+  word-break: break-word;
+}
+
+/* Location line is the shared kit <AddressLine>; only stretch it full-width. */
+.location {
+  width: 100%;
+}
+
+/* ---------- Stats row (employees • revenue) ---------- */
+.stats {
+  display: flex;
+  align-items: center;
+  gap: var(--space-200);
+}
+
+.stat {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-100);
+  white-space: nowrap;
+}
+
+/* Aeonik Regular / B1. */
+.value {
+  font-family: var(--font-family-sans);
+  font-weight: var(--font-weight-regular);
+  font-size: var(--font-size-b1);
+  line-height: var(--line-height-b1);
+  letter-spacing: var(--letter-spacing-b1);
+  color: var(--text-body);
+}
+
+/* 12px label. */
+.label {
+  font-family: var(--font-family-sans);
+  font-weight: var(--font-weight-regular);
+  font-size: var(--font-size-b3);
+  line-height: var(--line-height-b3);
+  letter-spacing: var(--letter-spacing-b3);
+  color: var(--text-labels);
+}
+
+/* 4px dot separator between the two stats. */
+.separator {
+  flex-shrink: 0;
+  width: 4px;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--text-labels);
+}

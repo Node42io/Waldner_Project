@@ -1,0 +1,46 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-300);
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-300);
+  border-radius: var(--radius-md);
+  border: none;
+  background: var(--surface-default-default-2);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Lighter surface variant — sits on a raised/page background. */
+.row.surfaceDefault {
+  background: var(--surface-default-default);
+}
+
+/* Compact variant — tighter gap/padding and a smaller radius. */
+.row.sm {
+  gap: var(--space-200);
+  padding: var(--space-200);
+  border-radius: var(--radius-sm);
+}
+
+.row.locked {
+  background: var(--surface-default-disabled);
+  cursor: default;
+}
+
+/* Positioning context for the locked-row upsell tooltip. */
+.wrap {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.tip {
+  position: absolute;
+  top: calc(100% + var(--space-100));
+  right: 0;
+  z-index: 30;
+}

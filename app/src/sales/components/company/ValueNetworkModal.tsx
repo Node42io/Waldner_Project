@@ -1,0 +1,154 @@
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { X } from "@phosphor-icons/react";
+import { BackButton, Divider, Scrollbar, Text } from "@node42/ui-kit";
+import { ValueNetworkView } from "../../../MarketPage";
+import { ODIMatrixView } from "../../../ODIMatrix";
+
+/**
+ * Value Network modal — opened from the CompanyDrawer's "Open Value Network"
+ * button. Reuses the exact same tree + detail view as the Market page
+ * (ValueNetworkView), so it stays visually identical; here it runs in `modal`
+ * mode, which pairs each buying-centre stakeholder with a named contact person
+ * (fabricated demo identity + LinkedIn) and force-enables the node's Needs
+ * button. Pressing Needs swaps the body for the ODI needs table (ODIMatrixView),
+ * the very same table shown on the ODI Matrix page. Back returns to the network.
+ *
+ * Rendered through a portal on document.body so it overlays the whole app.
+ * Dismiss on backdrop click or Escape.
+ */
+export function ValueNetworkModal({
+  companyName,
+  onClose,
+}: {
+  companyName: string;
+  onClose: () => void;
+}) {
+  const [showNeeds, setShowNeeds] = useState(false);
+  // Stakeholder(s) to pre-filter the in-modal needs table by. Empty = the whole
+  // node's needs (header Needs button); a single name = that stakeholder's needs
+  // (a card's "View needs" button). Kept in-modal — no navigation.
+  const [needsStk, setNeedsStk] = useState<string[]>([]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    // Lock background scroll while the modal is open.
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Value Network"
+      onMouseDown={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 2000,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "var(--space-500)",
+        background: "rgba(0, 0, 0, 0.55)",
+        backdropFilter: "blur(4px)",
+        WebkitBackdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onMouseDown={(e) => e.stopPropagation()}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          width: "min(1120px, 100%)",
+          maxHeight: "88vh",
+          background: "var(--surface-default-default)",
+          color: "var(--text-body)",
+          border: "var(--border-width-default) solid var(--border-default-default)",
+          borderRadius: "var(--radius-lg)",
+          boxShadow: "var(--shadow-lg, var(--shadow-md))",
+          overflow: "hidden",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-200)",
+            padding: "var(--space-400) var(--space-500)",
+          }}
+        >
+          {showNeeds ? (
+            <BackButton label="Back to value network" onClick={() => setShowNeeds(false)} style={{ flexShrink: 0 }} />
+          ) : null}
+          <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
+            {/* Section label — small/muted, above the prominent company name. */}
+            <Text
+              variant="label-s"
+              as="span"
+              style={{
+                color: "var(--text-labels)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {showNeeds ? "Needs - Opportunity Score" : "Value Network"}
+            </Text>
+            {/* Selected company — the prominent heading, kept across both the
+                Value Network and the Needs screens. */}
+            <Text variant="h4" as="h2" style={{ margin: 0 }}>
+              {companyName}
+            </Text>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close Value Network"
+            style={{
+              flexShrink: 0,
+              display: "grid",
+              placeItems: "center",
+              width: "var(--space-600)",
+              height: "var(--space-600)",
+              border: 0,
+              borderRadius: "var(--radius-xs)",
+              background: "transparent",
+              color: "var(--icon-description)",
+              cursor: "pointer",
+            }}
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <Divider />
+
+        {/* Body — the value-network view (with per-stakeholder contacts), or the
+            ODI needs table once a node's Needs button is pressed. */}
+        <Scrollbar style={{ padding: "var(--space-500)" }}>
+          {showNeeds ? (
+            <ODIMatrixView initialStk={needsStk} />
+          ) : (
+            <ValueNetworkView
+              onNeeds={(stk) => {
+                setNeedsStk(stk ? [stk] : []);
+                setShowNeeds(true);
+              }}
+              modal
+            />
+          )}
+        </Scrollbar>
+      </div>
+    </div>,
+    document.body,
+  );
+}

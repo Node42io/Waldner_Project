@@ -1,0 +1,15 @@
+# dependencies
+node_modules/
+
+# build output
+app/dist/
+ui-kit/dist/
+**/*.tsbuildinfo
+.tmp/
+
+# logs / os
+*.log
+.DS_Store
+
+# NOTE: the exported data JSON under app/src/data and app/public/data IS
+# committed on purpose — it is the app's data source for GitHub Pages.

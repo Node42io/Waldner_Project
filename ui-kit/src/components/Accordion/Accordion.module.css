@@ -1,0 +1,50 @@
+.accordion {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-200);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.titleWrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-100);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.summary {
+  flex-shrink: 0;
+  color: var(--text-labels);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-b3);
+  line-height: var(--line-height-b3);
+}
+
+.caret {
+  flex-shrink: 0;
+  color: var(--icon-description);
+  transition: transform 120ms ease;
+}
+
+.caret[data-open] {
+  transform: rotate(180deg);
+}
+
+.body {
+  margin-top: var(--space-300);
+}

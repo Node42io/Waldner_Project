@@ -1,0 +1,17 @@
+/* The custom scrollbar appearance (thin 2px, token-driven, light/dark aware) is
+   applied kit-wide in globals.css — including on Firefox via an @supports guard.
+   This component only owns the scroll behaviour per orientation. */
+
+.vertical {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.horizontal {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.both {
+  overflow: auto;
+}

@@ -1,0 +1,180 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  /* Label ↔ input field gap: 4px. */
+  gap: var(--space-100);
+  width: 100%;
+}
+
+/* ---------- Label (Geist Mono, uppercase; size scales with the field) ---------- */
+.label {
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-regular);
+  text-transform: uppercase;
+  color: var(--text-labels);
+}
+
+/* ---------- Input box ---------- */
+.box {
+  display: flex;
+  align-items: center;
+  gap: var(--space-200);
+  box-sizing: border-box;
+  width: 100%;
+  border: var(--border-width-default) solid var(--border-default-default-lighter);
+  border-radius: var(--radius-sm);
+  background: var(--surface-default-default);
+  overflow: hidden;
+  transition: border-color var(--duration-fast) var(--easing-standard);
+}
+
+/* ---------- Sizes: box height + inline padding, and label type step ---------- */
+.size-md .box {
+  height: var(--space-800); /* 40px */
+  padding-inline: var(--space-400);
+}
+
+.size-sm .box {
+  height: var(--space-700); /* 32px */
+  padding-inline: var(--space-300);
+}
+
+.size-xs .box {
+  height: var(--space-600); /* 24px */
+  padding-inline: var(--space-200);
+}
+
+.size-md .label {
+  font-size: var(--font-size-label-mono-md);
+  line-height: var(--line-height-label-mono-md);
+  letter-spacing: var(--letter-spacing-label-mono-md);
+}
+
+.size-sm .label {
+  font-size: var(--font-size-label-mono-sm);
+  line-height: var(--line-height-label-mono-sm);
+  letter-spacing: var(--letter-spacing-label-mono-sm);
+}
+
+.size-xs .label {
+  font-size: var(--font-size-label-mono-xs);
+  line-height: var(--line-height-label-mono-xs);
+  letter-spacing: var(--letter-spacing-label-mono-xs);
+}
+
+/* Active/focus: tertiary 2px border (no focus ring). */
+.box:focus-within {
+  border-color: var(--tertiary-default);
+  border-width: var(--space-50);
+}
+
+.box-error,
+.box-error:focus-within {
+  border-color: var(--border-error);
+}
+
+.box-error:focus-within {
+  box-shadow: var(--shadow-focus-error);
+}
+
+.box-error .trailing {
+  color: var(--icon-error);
+}
+
+.box-disabled {
+  background: var(--surface-action-primary-disabled);
+  border-color: var(--border-action-disabled);
+  cursor: not-allowed;
+}
+
+.box-disabled .leading,
+.box-disabled .trailing {
+  /* Figma icon/action/Disabled = neutral-default; only token with this value. */
+  color: var(--text-action-disabled);
+}
+
+/* ---------- Slots ---------- */
+.leading,
+.trailing {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.leading {
+  color: var(--icon-body);
+}
+
+.trailing {
+  color: var(--icon-description);
+}
+
+/* ---------- The input (Aeonik / B2) ---------- */
+.input {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-family-sans);
+  font-weight: var(--font-weight-regular);
+  font-size: var(--font-size-b1);
+  line-height: var(--line-height-b1);
+  letter-spacing: var(--letter-spacing-b1);
+  color: var(--text-body);
+}
+
+/* Compact sizes step the input type down (B2 at sm, B3 at xs). */
+.size-sm .input {
+  font-size: var(--font-size-b2);
+  line-height: var(--line-height-b2);
+  letter-spacing: var(--letter-spacing-b2);
+}
+
+.size-xs .input {
+  font-size: var(--font-size-b3);
+  line-height: var(--line-height-b3);
+  letter-spacing: var(--letter-spacing-b3);
+}
+
+.input::placeholder {
+  color: var(--text-placeholder);
+}
+
+.input:focus {
+  outline: none;
+}
+
+/* Drop native search decorations when used as a search field (see SearchBar). */
+.input::-webkit-search-decoration,
+.input::-webkit-search-cancel-button {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.input:disabled {
+  color: var(--text-on-action-disabled);
+  cursor: not-allowed;
+}
+
+/* ---------- Hint / error message (Aeonik / B3) ---------- */
+.hint,
+.error {
+  margin: 0;
+  width: 100%;
+  font-family: var(--font-family-sans);
+  font-weight: var(--font-weight-regular);
+  font-size: var(--font-size-b3);
+  line-height: var(--line-height-b3);
+  letter-spacing: var(--letter-spacing-b3);
+}
+
+.hint {
+  color: var(--text-description);
+}
+
+.error {
+  color: var(--text-error);
+}

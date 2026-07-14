@@ -1,0 +1,92 @@
+/* Geist Mono (Google Fonts) — powers the mono micro-labels (--font-family-mono).
+   Must stay at the very top: CSS requires @import before any other rule.
+   Aeonik (--font-family-sans) is a licensed font, self-hosted by the consumer. */
+@import url("https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap");
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-b1);
+  line-height: var(--line-height-b1);
+  color: var(--text-body);
+  background: var(--color-page);
+  /* Grayscale antialiasing so light-on-dark text isn't rendered heavier than
+     dark-on-light — keeps perceived weight consistent across themes. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+}
+
+/* Native form-control reset (no Tailwind Preflight is loaded). Strips the
+   browser's default chrome — the stray dark border, grey background and system
+   font — from native buttons so unstyled/custom buttons don't render a UA
+   border. Kit components set their own chrome via classes, which out-specify
+   these element-level rules, so they're unaffected. */
+button,
+[type="button"],
+[type="reset"],
+[type="submit"] {
+  border: 0;
+  background-color: transparent;
+  background-image: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+/* Thin 2px scrollbar, kit-wide, token-driven, adapts to light/dark.
+   `scrollbar-gutter: stable` reserves the page scrollbar's space so content
+   doesn't shift when it appears/disappears.
+   IMPORTANT: keep this on `html` only. Applying scrollbar-gutter to `*` breaks
+   SVG painting in Chromium — inline <svg> icons (Phosphor, checkmarks) render
+   blank even though their computed size/colour are correct. */
+html {
+  scrollbar-gutter: stable;
+}
+
+/* Firefox path: it has no ::-webkit-scrollbar, so style via the standard
+   properties. Guarded by @supports so WebKit/Blink do NOT apply scrollbar-width
+   here — in Chromium a non-auto scrollbar-width makes the engine ignore
+   ::-webkit-scrollbar and draw its own wider "thin" bar, which is exactly why a
+   plain 2px looked wide. */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-default-default) transparent;
+  }
+}
+
+/* WebKit/Blink path: exact 2px — honored because scrollbar-width isn't set. */
+*::-webkit-scrollbar {
+  width: var(--space-50); /* 2px */
+  height: var(--space-50);
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border-default-default);
+  border-radius: var(--radius-full);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--border-default-hover);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}

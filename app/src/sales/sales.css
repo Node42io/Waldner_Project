@@ -1,0 +1,157 @@
+/* Sales page styles — ported from node42-pharma-map's globals.css.
+ *
+ * Tailwind is loaded WITHOUT its Preflight base reset: this app already ships a
+ * minimal reset in index.css, and Preflight is global CSS that would leak into
+ * the other (non-Tailwind) report pages. We pull in only the theme + utilities
+ * layers, so the ported Sales components get their utility classes while the
+ * rest of odi_waldner is left untouched.
+ *
+ * Design tokens are OWNED by @node42/ui-kit (loaded app-wide via the kit
+ * barrel). This file defines NO colour values of its own — it only forwards the
+ * kit's semantic tokens to the short alias names the ported components use
+ * (var(--bg-page), var(--ink), …). Light/dark flips live in the kit; these
+ * aliases inherit it automatically.
+ */
+@layer theme, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+:root {
+  --bg-page: var(--color-page);
+  --bg-panel: var(--surface-default-default);
+  --bg-panel-2: var(--surface-default-default-2);
+  --bg-elev: var(--surface-default-default-3);
+  --line: var(--border-default-default-lighter);
+  --ink: var(--text-headings);
+  --muted: var(--text-description);
+  --dim: var(--text-labels);
+  --accent: var(--yellow-default);
+  --prospect: var(--yellow-default);
+  --lead: var(--light-blue-default);
+  --active: var(--green-default);
+  --warn: var(--red-default);
+}
+
+@theme inline {
+  --color-page: var(--bg-page);
+  --color-panel: var(--bg-panel);
+  --color-panel2: var(--bg-panel-2);
+  --color-elev: var(--bg-elev);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-dim: var(--dim);
+  --color-accent: var(--accent);
+  --color-prospect: var(--prospect);
+  --color-lead: var(--lead);
+  --color-active: var(--active);
+  --color-warn: var(--warn);
+  /* No next/font here — fall back to the kit's canonical stacks. */
+  --font-sans: var(--font-family-sans);
+  --font-mono: var(--font-family-mono);
+}
+
+/* Scope the Sales chrome: everything inside .sales-root inherits the mono
+   alias for the .font-mono helper the ported components rely on. */
+.sales-root .font-mono { font-family: var(--font-family-mono); }
+
+/* Full-width kit SearchBar — overrides its fixed toolbar width (the doubled
+   class out-specifies the kit's own `.size-*` width rule, same trick the app
+   uses for `.vn-searchbar`). Used for the Customer List + map search. */
+.sb-full.sb-full { width: 100%; }
+
+/* Leaflet tile gutter */
+.leaflet-container { background: var(--black); }
+[data-theme="light"] .leaflet-container { background: var(--neutral-100); }
+/* Dark basemap tinted toward the kit's --secondary-default: a dark,
+   low-saturation blue-grey. */
+[data-theme="dark"] .leaflet-tile-pane { filter: grayscale(100%) sepia(0.5) hue-rotate(183deg) saturate(2.2) brightness(2.6) contrast(0.9); }
+.leaflet-marker-icon.n42-pin { cursor: pointer; }
+.leaflet-tooltip {
+  background: var(--secondary-700) !important;
+  color: var(--white) !important;
+  border: 1px solid var(--secondary-default) !important;
+  border-radius: 8px !important;
+  padding: 6px 10px !important;
+  box-shadow: 0 6px 16px rgba(0,0,0,.55) !important;
+  font-family: var(--font-family-sans) !important;
+}
+.leaflet-tooltip-top:before { border-top-color: var(--secondary-default) !important; }
+.leaflet-tooltip-bottom:before { border-bottom-color: var(--secondary-default) !important; }
+.n42-tooltip-name { font-size: 12px; font-weight: 600; }
+.n42-tooltip-meta { font-size: 11px; opacity: .65; margin-top: 1px; }
+
+.leaflet-control-attribution {
+  background: color-mix(in srgb, var(--black) 70%, transparent) !important;
+  color: var(--secondary-200) !important;
+}
+.leaflet-control-attribution a { color: var(--secondary-100) !important; }
+
+/* Leaflet zoom control — match the MapControls glass cluster vocabulary. */
+.leaflet-control-zoom {
+  border: none !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+              0 4px 6px -4px rgba(0, 0, 0, 0.1) !important;
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.leaflet-control-zoom a.leaflet-control-zoom-in,
+.leaflet-control-zoom a.leaflet-control-zoom-out {
+  background: var(--bg-panel) !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--line) !important;
+  font-weight: 500 !important;
+  font-size: 18px !important;
+  line-height: 28px !important;
+  width: 30px !important;
+  height: 30px !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: background 0.15s ease;
+}
+.leaflet-control-zoom a.leaflet-control-zoom-in {
+  border-radius: 8px 8px 0 0 !important;
+  border-bottom: none !important;
+}
+.leaflet-control-zoom a.leaflet-control-zoom-out {
+  border-radius: 0 0 8px 8px !important;
+}
+.leaflet-control-zoom a.leaflet-control-zoom-in:hover,
+.leaflet-control-zoom a.leaflet-control-zoom-out:hover {
+  background: var(--bg-panel-2) !important;
+  color: var(--ink) !important;
+}
+.leaflet-control-zoom a.leaflet-disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* @node42/ui-kit <Pin> rendered into Leaflet div-icons (markers + clusters). */
+.n42-kitpin-wrapper { background: transparent !important; border: none !important; overflow: visible !important; }
+.n42-kitpin { display: inline-flex; }
+.n42-kitpin > button { padding: 0; cursor: pointer; }
+.n42-kitpin:not(.n42-kitpin-group):not(.n42-kitpin-labeled) button > span:nth-of-type(2) { display: none; }
+.n42-kitpin-labeled button > span:nth-of-type(2) { pointer-events: none; }
+.n42-kitpin-dimmed { opacity: 0.7; }
+.marker-cluster { background: transparent !important; }
+.marker-cluster div { background: transparent !important; }
+
+/* Custom div-icon marker */
+.pin {
+  width: 22px; height: 22px; border-radius: 999px;
+  background: var(--prospect); border: 2px solid var(--secondary-1050);
+  box-shadow: 0 2px 6px rgba(0,0,0,.5);
+}
+.pin.lead { background: var(--lead); }
+.pin.active { background: var(--active); }
+
+/* Number input — strip spinners inside filter panel */
+.filter-panel input[type="number"]::-webkit-outer-spin-button,
+.filter-panel input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+.filter-panel input[type="number"] { -moz-appearance: textfield; appearance: textfield; }

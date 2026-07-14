@@ -1,0 +1,45 @@
+{
+  "countryOptions": [
+    {
+      "value": "",
+      "label": "All countries"
+    },
+    {
+      "value": "AUT",
+      "label": "Austria"
+    },
+    {
+      "value": "CHE",
+      "label": "Switzerland"
+    },
+    {
+      "value": "DEU",
+      "label": "Germany"
+    }
+  ],
+  "countryNames": {
+    "AUT": "Austria",
+    "CHE": "Switzerland",
+    "DEU": "Germany"
+  },
+  "marketOptions": [
+    {
+      "value": "",
+      "label": "All markets"
+    },
+    {
+      "value": "sterile_fill_finish",
+      "label": "Sterile Fill-Finish"
+    }
+  ],
+  "segment": "Sterile Fill-Finish",
+  "segments": [
+    {
+      "id": "sterile-fill-finish",
+      "name": "Sterile Fill-Finish",
+      "naics": "325412",
+      "count": 91
+    }
+  ],
+  "total": 91
+}

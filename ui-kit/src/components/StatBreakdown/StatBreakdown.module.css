@@ -1,0 +1,55 @@
+.root {
+  display: flex;
+  align-items: center;
+  gap: var(--space-400);
+}
+
+/* The large headline figure. */
+.figure {
+  flex: 0 0 auto;
+  min-width: 2ch;
+  font-family: var(--font-family-sans);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-h4);
+  line-height: var(--line-height-h4);
+  color: var(--text-headings);
+}
+
+/* Hairline rule between the figure and the breakdown. */
+.rule {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: var(--space-25);
+  background: var(--border-card);
+}
+
+/* Breakdown grid: marker · count · label. */
+.grid {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  column-gap: var(--space-200);
+  row-gap: var(--space-100);
+  align-items: center;
+  font-size: var(--font-size-b3);
+  line-height: var(--line-height-b3);
+}
+
+.marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-400);
+  color: var(--icon-subtle);
+}
+
+.count {
+  font-family: var(--font-family-sans);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-headings);
+  text-align: right;
+}
+
+.label {
+  color: var(--text-description);
+  white-space: nowrap;
+}

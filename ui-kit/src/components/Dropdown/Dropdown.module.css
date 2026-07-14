@@ -1,0 +1,207 @@
+/* ---------- Root ---------- */
+.root {
+  position: relative;
+  display: inline-block;
+}
+
+/* Block layout: used when a field `label` is present or `fullWidth` is set. */
+.block {
+  display: block;
+  width: 100%;
+}
+
+/* ---------- Field label (uppercase mono, above the trigger) ---------- */
+.fieldLabel {
+  display: block;
+  margin-bottom: var(--space-100);
+  font-family: var(--font-family-mono);
+  text-transform: uppercase;
+  color: var(--text-labels);
+}
+
+/* ---------- Trigger ---------- */
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-200);
+  box-sizing: border-box;
+  border: var(--border-width-default) solid var(--border-default-default-lighter);
+  border-radius: var(--radius-sm);
+  background: var(--surface-default-default);
+  color: var(--text-body);
+  font-family: var(--font-family-sans);
+  font-weight: var(--font-weight-regular);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--easing-standard),
+    background-color var(--duration-fast) var(--easing-standard);
+}
+
+.trigger.full {
+  display: flex;
+  width: 100%;
+}
+
+/* ---------- Sizes: trigger height + padding + type, and label step — 1:1 with InputField ---------- */
+.size-md .trigger {
+  height: var(--space-800); /* 40px */
+  padding-inline: var(--space-400);
+  font-size: var(--font-size-b1);
+  letter-spacing: var(--letter-spacing-b1);
+}
+
+.size-sm .trigger {
+  height: var(--space-700); /* 32px */
+  padding-inline: var(--space-300);
+  font-size: var(--font-size-b2);
+  letter-spacing: var(--letter-spacing-b2);
+}
+
+.size-xs .trigger {
+  height: var(--space-600); /* 24px */
+  padding-inline: var(--space-200);
+  font-size: var(--font-size-b3);
+  letter-spacing: var(--letter-spacing-b3);
+}
+
+.size-md .fieldLabel {
+  font-size: var(--font-size-label-mono-md);
+  line-height: var(--line-height-label-mono-md);
+  letter-spacing: var(--letter-spacing-label-mono-md);
+}
+
+.size-sm .fieldLabel {
+  font-size: var(--font-size-label-mono-sm);
+  line-height: var(--line-height-label-mono-sm);
+  letter-spacing: var(--letter-spacing-label-mono-sm);
+}
+
+.size-xs .fieldLabel {
+  font-size: var(--font-size-label-mono-xs);
+  line-height: var(--line-height-label-mono-xs);
+  letter-spacing: var(--letter-spacing-label-mono-xs);
+}
+
+.trigger:hover:not(:disabled) {
+  border-color: var(--border-default-hover);
+}
+
+/* Active/focus: tertiary 2px border, matching InputField (no focus ring). */
+.trigger:focus-visible {
+  outline: none;
+  border-color: var(--tertiary-default);
+  border-width: var(--space-50);
+}
+
+.trigger:disabled {
+  cursor: not-allowed;
+  color: var(--text-action-disabled);
+  background: var(--surface-default-disabled);
+  border-color: var(--border-action-disabled);
+}
+
+.triggerIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--icon-description);
+}
+
+.triggerText {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.placeholder {
+  color: var(--text-description);
+}
+
+.caret {
+  flex-shrink: 0;
+  color: var(--icon-description);
+  transition: transform var(--duration-fast) var(--easing-standard);
+}
+
+.caretOpen {
+  transform: rotate(180deg);
+}
+
+/* ---------- Menu (popover listbox) ---------- */
+.menu {
+  position: absolute;
+  top: calc(100% + var(--space-100));
+  left: 0;
+  z-index: 20;
+  min-width: 100%;
+  padding: var(--space-100);
+  background: var(--surface-default-default);
+  border: var(--border-width-default) solid var(--border-default-default-lighter);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-s);
+  white-space: nowrap;
+}
+
+.search {
+  margin: var(--space-50) var(--space-50) var(--space-100);
+}
+
+.list {
+  max-height: 288px;
+  overflow: auto;
+}
+
+/* ---------- Option ---------- */
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-200);
+  width: 100%;
+  padding: var(--space-200) var(--space-300);
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-body);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-b2);
+  letter-spacing: var(--letter-spacing-b2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.option:hover {
+  background: var(--surface-default-hover);
+}
+
+.optionSelected {
+  background: var(--surface-selected-colored);
+}
+
+.optionSelected:hover {
+  background: var(--surface-selected-colored);
+}
+
+.optionText {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  padding: var(--space-200) var(--space-300);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-b2);
+  color: var(--text-description);
+}
+
+/* Confirmable footer — Cancel / Ok, right-aligned below the option list. */
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-200);
+  margin-top: var(--space-100);
+  padding: var(--space-200) var(--space-100) var(--space-100);
+  border-top: var(--border-width-default) solid var(--border-default-default-lighter);
+}
