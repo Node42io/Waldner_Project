@@ -876,7 +876,7 @@ function MarketDetail({ node, path, onSelect, onNeeds, modal, peopleByUnitRole }
             </div>
           ) : (
             <Text variant="b3" as="p" style={{ margin: 0, color: 'var(--text-labels)' }}>
-              This value-network unit has no mapped buying centre yet. Open a rated L5 unit (the ones with a “Needs &amp; Jobs” button) to see its stakeholders.
+              This value-network unit has no mapped buying centre yet. Open a rated unit (the ones with a “Needs &amp; Jobs” button) to see its stakeholders.
             </Text>
           )
         ) : (
