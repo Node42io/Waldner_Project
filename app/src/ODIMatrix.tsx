@@ -85,6 +85,7 @@ const CSV_COLS: { header: string; get: (r: OdiRow) => string | number }[] = [
   { header: 'Job', get: (r) => r.source_job },
   { header: 'Job type', get: (r) => r.job_type },
   { header: 'Need', get: (r) => r.stmt },
+  { header: 'Need (plain language)', get: (r) => r.plain ?? '' },
   { header: 'Status', get: (r) => statusOf(r).label },
   { header: 'Importance', get: (r) => r.imp.toFixed(1) },
   { header: 'Importance band', get: (r) => r.imp_band },
@@ -152,7 +153,13 @@ function MetricCard({ label, value, band, variant, conf, rat }: { label: string;
 
 function RationalePanel({ r }: { r: OdiRow }) {
   return (
-    <div style={{ padding: 'var(--space-500)', background: 'var(--surface-default-default-2)', borderTop: '1px solid var(--border-card)' }}>
+    <div style={{ padding: 'var(--space-500)', background: 'var(--surface-default-default-2)', borderTop: '1px solid var(--border-card)', display: 'flex', flexDirection: 'column', gap: 'var(--space-400)' }}>
+      {r.plain ? (
+        <div style={{ padding: 'var(--space-300) var(--space-400)', background: 'var(--surface-default-default)', border: '1px solid var(--border-card)', borderRadius: 'var(--radius-200)' }}>
+          <Text variant="b3" weight="medium" as="p" style={{ margin: '0 0 var(--space-100)', color: 'var(--text-subtle)' }}>In plain language</Text>
+          <Text variant="b2" as="p" style={{ margin: 0, color: 'var(--text-body)' }}>{r.plain}</Text>
+        </div>
+      ) : null}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-400)' }}>
         <MetricCard label="Importance" value={r.imp} band={r.imp_band} variant={impVariant(r.imp_band)} conf={r.imp_conf} rat={r.imp_rat} />
         <MetricCard label="Satisfaction" value={r.sat} band={r.sat_band} variant={satVariant(r.sat_band)} conf={r.sat_conf} rat={r.sat_rat} />
@@ -204,6 +211,12 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'imp', dir: -1 })
   const [open, setOpen] = useState<Set<number>>(new Set())
   const [expandAll, setExpandAll] = useState(false)
+  // When on, the Need column/graph shows the plain-language rewrite where one
+  // exists (top/bottom-opportunity needs), falling back to the technical
+  // statement. The expanded row always shows both regardless of this toggle.
+  const [showPlain, setShowPlain] = useState(false)
+  const hasPlain = useMemo(() => data.rows.some((r) => r.plain), [data])
+  const needText = (r: OdiRow) => (showPlain && r.plain ? r.plain : r.stmt)
 
   // Stable id per need (index in the source array), for expand state.
   const rowId = useMemo(() => new Map(data.rows.map((r, i) => [r, i] as const)), [data])
@@ -232,7 +245,7 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
         (stk.length === 0 || stk.includes(r.stk)) &&
         (job.length === 0 || job.includes(r.source_job)) &&
         (range == null || (r.imp >= range.impMin && (r.imp < range.impMax || range.impMax === 10) && r.sat >= range.satMin && (r.sat < range.satMax || range.satMax === 10))) &&
-        (q === '' || r.stmt.toLowerCase().includes(q) || r.source_job.toLowerCase().includes(q) || r.stk.toLowerCase().includes(q)),
+        (q === '' || r.stmt.toLowerCase().includes(q) || (r.plain ?? '').toLowerCase().includes(q) || r.source_job.toLowerCase().includes(q) || r.stk.toLowerCase().includes(q)),
     )
   }, [data, stk, job, query, range])
 
@@ -403,6 +416,13 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
                 label="See all rationals"
               />
             ) : null}
+            {hasPlain ? (
+              <Checkbox
+                checked={showPlain}
+                onChange={() => setShowPlain((v) => !v)}
+                label="Plain language"
+              />
+            ) : null}
             {/* CSV export — same button as the Sales page (secondary-neutral + download
                 icon); exports the current filtered/sorted needs. */}
             <Button
@@ -462,7 +482,7 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
               <>
                 <Text variant="b3" weight="medium" as="span">{p.source_job}</Text>
                 <span style={{ fontFamily: 'var(--font-family-sans)', fontSize: 'var(--font-size-b4)', color: 'var(--text-description)' }}>{p.stk}</span>
-                <Text variant="b3" as="span" style={{ color: 'var(--text-body)' }}>{p.stmt}</Text>
+                <Text variant="b3" as="span" style={{ color: 'var(--text-body)' }}>{needText(p)}</Text>
                 <span style={{ display: 'flex', gap: 'var(--space-300)', marginTop: 'var(--space-50)' }}>
                   <span style={{ ...mono, fontSize: 'var(--font-size-b4)', color: 'var(--text-description)' }}>imp {p.imp.toFixed(1)}</span>
                   <span style={{ ...mono, fontSize: 'var(--font-size-b4)', color: 'var(--text-description)' }}>sat {p.sat.toFixed(1)}</span>
@@ -484,7 +504,7 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
                 </div>
               ) },
               { header: 'Job', width: '22%', render: (p) => p.source_job },
-              { header: 'Need', render: (p) => p.stmt },
+              { header: 'Need', render: (p) => needText(p) },
             ]}
           />
           </div>
@@ -555,7 +575,7 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
                       {/* Job */}
                       <Table.Cell style={topCell}>{r.source_job}</Table.Cell>
                       {/* Need */}
-                      <Table.Cell style={{ ...topCell, whiteSpace: 'normal', lineHeight: 'var(--line-height-b2)' }}>{r.stmt}</Table.Cell>
+                      <Table.Cell style={{ ...topCell, whiteSpace: 'normal', lineHeight: 'var(--line-height-b2)' }}>{needText(r)}</Table.Cell>
                       {/* Job type — the job's ODI type; a product job instead reads
                           "Product job" + its product life-cycle stage. */}
                       <Table.Cell style={topCell}>

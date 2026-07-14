@@ -38,6 +38,10 @@ export interface OdiRow {
   sat_conf_b: string
   opp: number
   rank: number
+  // Plain-language rewrite of the need statement (gpt-5.6-luna), on the top/bottom
+  // opportunity needs. Empty for needs without a plain-language version.
+  plain?: string
+  plain_band?: string
 }
 
 export interface OdiData {

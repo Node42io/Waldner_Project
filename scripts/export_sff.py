@@ -287,6 +287,7 @@ def main() -> int:
             "elementId(sr) AS sr_eid, sr.role AS role, sr.title AS title, "
             "sr.esco_code AS esco, sr.confidence AS sr_conf, "
             "es.need_statement AS stmt, es.error_statement AS estmt, "
+            "es.plain_language AS plain, es.plain_language_band AS plain_band, "
             "es.job_type AS job_type, es.need_direction AS need_dir, "
             "es.metric_word AS metric_word, es.error_type AS error_type, "
             "es.importance_v2 AS imp, es.importance_rationale_v2 AS imp_rat, "
@@ -330,6 +331,8 @@ def main() -> int:
                     "job_type": rec["job_type"],
                     "source_job": rec["source_job"] or (rec["stmt"] or ""),
                     "stmt": rec["stmt"] or rec["estmt"],
+                    "plain": rec["plain"] or "",
+                    "plain_band": rec["plain_band"] or "",
                     "imp": rec["imp"],
                     "imp_band": band(rec["imp"]),
                     "imp_rat": rec["imp_rat"] or "",
