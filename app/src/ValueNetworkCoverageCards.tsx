@@ -70,27 +70,6 @@ const COV = {
   none: 'var(--border-default-default)',
 }
 
-// Per-level coverage for the overview cards: total units at the level, how many
-// each company covers (own products), and how many are covered by both.
-const LEVEL_ORDER = ['L7', 'L6', 'L6a', 'L5', 'L4', 'L3']
-type LevelCoverage = { level: string; u: number; w: number; b: number; both: number }
-function coverageByLevel(root: VMU): LevelCoverage[] {
-  const m = new Map<string, { u: number; w: number; b: number; both: number }>()
-  const walk = (n: VMU) => {
-    const e = m.get(n.level) ?? { u: 0, w: 0, b: 0, both: 0 }
-    e.u++
-    const cw = n.waldner.length > 0
-    const cb = n.brinox.length > 0
-    if (cw) e.w++
-    if (cb) e.b++
-    if (cw && cb) e.both++
-    m.set(n.level, e)
-    n.children.forEach(walk)
-  }
-  walk(root)
-  return LEVEL_ORDER.filter((l) => m.has(l)).map((l) => ({ level: l, ...m.get(l)! }))
-}
-
 const COL_W = 96 // Waldner / Brinox column width
 const GUIDE = 'var(--border-default-default-lighter)'
 const dotStyle: CSSProperties = { width: 'var(--space-200)', height: 'var(--space-200)', borderRadius: '50%', background: 'var(--primary-600)', flexShrink: 0, boxShadow: '0 0 0 var(--space-50) var(--surface-default-default)' }
@@ -133,15 +112,6 @@ export default function ValueNetworkCoverageCards() {
   // stages show, with everything below (L6a/L5/…) collapsed.
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set([TREE.id]))
   const [selectedId, setSelectedId] = useState<string>(TREE.id)
-
-  const byLevel = useMemo(() => coverageByLevel(TREE), [])
-  // Overview cards summarise one level — default to the level with the most
-  // combined coverage (L5 for the SFF network), selectable via the chips.
-  const defaultLevel = useMemo(
-    () => byLevel.slice().sort((a, b) => (b.w + b.b) - (a.w + a.b))[0]?.level ?? 'L5',
-    [byLevel],
-  )
-  const [ovLevel, setOvLevel] = useState<string>(defaultLevel)
 
   const path = useMemo(() => findPath(TREE, selectedId) ?? [TREE], [selectedId])
   const selected = path[path.length - 1]
@@ -211,9 +181,23 @@ export default function ValueNetworkCoverageCards() {
   const headCell: CSSProperties = { flexShrink: 0, textAlign: 'center', fontFamily: 'var(--font-family-mono)', fontSize: 'var(--font-size-b4)', textTransform: 'uppercase', color: 'var(--text-labels)', letterSpacing: '0.04em' }
   const legendText: CSSProperties = { fontFamily: 'var(--font-family-sans)', fontSize: 'var(--font-size-b4)', color: 'var(--text-labels)' }
 
-  // The overview cards focus on the chosen level. Left = per-company coverage bars
-  // (share of the level each covers); right = a donut of the level's split.
-  const lv = byLevel.find((r) => r.level === ovLevel) ?? { level: ovLevel, u: 0, w: 0, b: 0, both: 0 }
+  // The overview cards summarise the SELECTED node's direct children: click an L7
+  // to see its L6 coverage, an L6a to see its L5 coverage, etc. Coverage counts a
+  // child if it OR any of its sub-levels holds a product (anyProduct), so higher
+  // levels still reflect the equipment underneath.
+  const lv = useMemo(() => {
+    const kids = selected.children
+    const level = kids[0]?.level ?? selected.level
+    let w = 0, b = 0, both = 0
+    for (const k of kids) {
+      const cw = anyProduct(k, 'waldner')
+      const cb = anyProduct(k, 'brinox')
+      if (cw) w++
+      if (cb) b++
+      if (cw && cb) both++
+    }
+    return { level, u: kids.length, w, b, both }
+  }, [selected])
   const onlyW = Math.max(0, lv.w - lv.both)
   const onlyB = Math.max(0, lv.b - lv.both)
   const noneLv = Math.max(0, lv.u - lv.both - onlyW - onlyB)
@@ -238,23 +222,13 @@ export default function ValueNetworkCoverageCards() {
     )
   }
 
-  // Level selector chips shared by both overview cards.
-  const levelChips = (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-100)' }}>
-      {byLevel.map((r) => {
-        const active = r.level === ovLevel
-        return (
-          <button
-            key={r.level}
-            type="button"
-            onClick={() => setOvLevel(r.level)}
-            aria-pressed={active}
-            style={{ border: 0, background: 'transparent', padding: 0, cursor: 'pointer', opacity: active ? 1 : 0.5, transition: 'opacity 120ms ease' }}
-          >
-            <Badge variant="color" size="xs" style={levelStyle(r.level)}>{r.level}</Badge>
-          </button>
-        )
-      })}
+  // Context shown on both cards: which node's children are being summarised.
+  const levelContext = (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-100)', minWidth: 0 }}>
+      {lv.u > 0 ? <Badge variant="color" size="xs" style={levelStyle(lv.level)}>{lv.level}</Badge> : null}
+      <Text variant="b3" as="span" style={{ color: 'var(--text-labels)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {lv.u > 0 ? `under ${selected.name}` : 'no sub-levels'}
+      </Text>
     </span>
   )
 
@@ -280,7 +254,7 @@ export default function ValueNetworkCoverageCards() {
         <div style={{ flex: '1 1 340px', minWidth: 0, padding: 'var(--space-300)', borderRadius: 'var(--radius-lg)', background: 'var(--surface-default-default)', boxShadow: 'var(--shadow-s)', display: 'flex', flexDirection: 'column', gap: 'var(--space-300)' }}>
           <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-200)' }}>
             <Text variant="label-s" as="span">Coverage</Text>
-            {levelChips}
+            {levelContext}
           </span>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 'var(--space-300)' }}>
             {covBar('Waldner', lv.w, lv.u, COV.waldner)}
@@ -291,7 +265,7 @@ export default function ValueNetworkCoverageCards() {
         <div style={{ flex: '1 1 340px', minWidth: 0, padding: 'var(--space-300)', borderRadius: 'var(--radius-lg)', background: 'var(--surface-default-default)', boxShadow: 'var(--shadow-s)', display: 'flex', flexDirection: 'column', gap: 'var(--space-300)' }}>
           <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-200)' }}>
             <Text variant="label-s" as="span">Split</Text>
-            <Badge variant="color" size="xs" style={levelStyle(lv.level)}>{lv.level}</Badge>
+            {levelContext}
           </span>
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 'var(--space-500)' }}>
             <DonutChart data={donutData} size={116} thickness={16} gap={6} title={`${lv.level} coverage split`}>
