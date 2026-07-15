@@ -247,7 +247,10 @@ def main() -> int:
         for rec in s.run(
             "MATCH (c:Company {name:$owner})-[:has_product]->(p:Product)"
             "-[:matches_vn_unit]->(u:ValueNetworkUnit {value_network:$net}) "
-            "MATCH (p)-[:in_product_group]->(:ProductGroup)-[:has_product_job]->(pj:ProductJob) "
+            # Product jobs anchor on EITHER a ProductGroup or the product's UNSPSC
+            # commodity — follow both so units whose jobs hang off the commodity
+            # (e.g. Aseptic Filling Machine) aren't missed.
+            "MATCH (p)-[:in_product_group|classified_as_unspsc]->()-[:has_product_job]->(pj:ProductJob) "
             "RETURN u.name AS unit, pj.category AS cat, pj.name AS name, "
             "pj.statement AS stmt, pj.description AS descr, pj.user_group AS ug, "
             "pj.frequency AS freq, pj.lifecycle_kind AS kind "
@@ -361,7 +364,8 @@ def main() -> int:
         for rec in s.run(
             "MATCH (c:Company {name:$owner})-[:has_product]->(p:Product)"
             "-[:matches_vn_unit]->(u:ValueNetworkUnit {value_network:$net}) "
-            "MATCH (p)-[:in_product_group]->(:ProductGroup)-[:has_product_job]->(pj:ProductJob)"
+            # Both anchor paths (see product_jobs_by_unit above).
+            "MATCH (p)-[:in_product_group|classified_as_unspsc]->()-[:has_product_job]->(pj:ProductJob)"
             "-[:has_error]->(e:ErrorStatement) "
             "WHERE e.opportunity_v2 IS NOT NULL "
             "RETURN u.name AS unit, pj.name AS job, pj.category AS cat, elementId(e) AS eid, "
