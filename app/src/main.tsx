@@ -14,6 +14,7 @@ import ODIMatrix from './ODIMatrix.tsx'
 import MarketPage from './MarketPage.tsx'
 import ProductManagementPage from './ProductManagementPage.tsx'
 import ValueNetworkCoverage from './ValueNetworkCoverage.tsx'
+import ValueNetworkCoverageCards from './ValueNetworkCoverageCards.tsx'
 import { GlossaryProvider } from './Glossary.tsx'
 
 // Lazy-loaded so the Sales page's extra weight (Leaflet, Tailwind utilities,
@@ -31,6 +32,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/product-management" element={<ProductManagementPage />} />
           <Route path="/market-page" element={<MarketPage />} />
           <Route path="/value-network-coverage" element={<ValueNetworkCoverage />} />
+          <Route path="/value-network-coverage-cards" element={<ValueNetworkCoverageCards />} />
           <Route
             path="/sales"
             element={

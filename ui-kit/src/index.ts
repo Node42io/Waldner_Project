@@ -113,6 +113,12 @@ export type {
   DonutSegment,
 } from "./components/DonutChart/DonutChart";
 
+export { SegmentBar } from "./components/SegmentBar/SegmentBar";
+export type {
+  SegmentBarProps,
+  SegmentBarSegment,
+} from "./components/SegmentBar/SegmentBar";
+
 export { CardTable } from "./components/CardTable/CardTable";
 export type {
   CardTableProps,

@@ -1,0 +1,15 @@
+.track {
+  display: flex;
+  width: 100%;
+  overflow: hidden;
+  background: var(--surface-default-default-3);
+}
+
+.rounded {
+  border-radius: var(--radius-full);
+}
+
+.segment {
+  height: 100%;
+  flex-shrink: 0;
+}
