@@ -129,13 +129,9 @@ function ProductCard({ p }: { p: Product }) {
 }
 
 export default function ValueNetworkCoverageCards() {
-  // Expand the spine down to the first covered level so the tree opens informative.
-  const [expanded, setExpanded] = useState<Set<string>>(() => {
-    const s = new Set<string>()
-    const seed = (n: VMU, depth: number) => { if (depth < 3) s.add(n.id); n.children.forEach((c) => seed(c, depth + 1)) }
-    seed(TREE, 0)
-    return s
-  })
+  // Collapsed by default to L7 + L6: expand only the root so its L6 process
+  // stages show, with everything below (L6a/L5/…) collapsed.
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set([TREE.id]))
   const [selectedId, setSelectedId] = useState<string>(TREE.id)
 
   const byLevel = useMemo(() => coverageByLevel(TREE), [])

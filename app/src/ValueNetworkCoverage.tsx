@@ -101,10 +101,9 @@ function ProductCard({ p }: { p: Product }) {
 }
 
 export default function ValueNetworkCoverage() {
-  // Expand the root + its L6 process stages by default.
-  const [expanded, setExpanded] = useState<Set<string>>(
-    () => new Set([TREE.id, ...TREE.children.map((c) => c.id)]),
-  )
+  // Collapsed by default to L7 + L6: expand only the root so its L6 process
+  // stages show, with everything below (L6a/L5/…) collapsed.
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set([TREE.id]))
   const [selectedId, setSelectedId] = useState<string>(TREE.id)
 
   const path = useMemo(() => findPath(TREE, selectedId) ?? [TREE], [selectedId])
