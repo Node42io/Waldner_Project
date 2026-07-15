@@ -388,9 +388,9 @@ def build_company(lead, cj, enr, mgmt, key_persons, people_by_unit_role, allow_o
         "name": name,
         "country": iso,
         "city": city,
-        "employees": pick((rec or {}).get("employees"), to_int((e or {}).get("employees"))),
-        "revLowerUsd": pick((rec or {}).get("revLowerUsd"), to_int((e or {}).get("rev_lower_usd"))),
-        "revHigherUsd": pick((rec or {}).get("revHigherUsd"), to_int((e or {}).get("rev_higher_usd"))),
+        "employees": pick((rec or {}).get("employees"), to_int((e or {}).get("employees")), to_int(lead.get("headcount"))),
+        "revLowerUsd": pick((rec or {}).get("revLowerUsd"), to_int((e or {}).get("rev_lower_usd")), to_int(lead.get("est_rev_lower"))),
+        "revHigherUsd": pick((rec or {}).get("revHigherUsd"), to_int((e or {}).get("rev_higher_usd")), to_int(lead.get("est_rev_higher"))),
         "buckets": buckets,
         # Real market segment from the graph (all validated accounts are Sterile
         # Fill-Finish). Drives the Customer List's segment filter — unlike the
@@ -398,7 +398,7 @@ def build_company(lead, cj, enr, mgmt, key_persons, people_by_unit_role, allow_o
         "segment": lead.get("segment_focus") or "Sterile Fill-Finish",
         "source": "neo4j:leadlist(waldner_pas)" + ("+companies.json" if rec else ("+enriched.csv" if e else "")),
         "industry": pick((rec or {}).get("industry"), (e or {}).get("specialty", "").split(" / ")[0] if e else None, default="Sterile Fill-Finish CDMO"),
-        "description": pick((rec or {}).get("description"), (e or {}).get("build_signal") if e else None, default=""),
+        "description": pick((rec or {}).get("description"), lead.get("description"), (e or {}).get("build_signal") if e else None, default=""),
         "buildSignal": pick((rec or {}).get("buildSignal"), (e or {}).get("build_signal") if e else None, default=""),
         "url": url,
         "oncologyTags": (rec or {}).get("oncologyTags") or [],
@@ -461,7 +461,14 @@ def main() -> int:
             "MATCH (c:Company)-[:in_lead_list]->(:LeadList) "
             "RETURN c.name AS name, c.hq_country AS hq_country, c.dach_site AS dach_site, "
             "c.website_domain AS website_domain, c.segment_focus AS segment_focus, "
-            "c.lead_status AS lead_status ORDER BY c.name"
+            "c.lead_status AS lead_status, "
+            # Firmographics stored on the Company node itself — used to fill the
+            # gaps the external enrichment (Crustdata/CSV) leaves. Neo4j covers
+            # description 91/91, revenue + headcount ~83/91.
+            "c.description AS description, c.headcount AS headcount, "
+            "c.estimated_revenue_lower_usd AS est_rev_lower, "
+            "c.estimated_revenue_higher_usd AS est_rev_higher "
+            "ORDER BY c.name"
         )]
         key_persons = load_key_persons(s)
         people_by_unit_role = load_people_by_unit_role(s, rated_units)
