@@ -352,13 +352,12 @@ def main() -> int:
             )
 
         # ---- Product-job needs (Burleson L1 product jobs → error statements) ----
-        # Same unit←product→group→job path as product_jobs_by_unit, extended to the
-        # jobs' scored error statements. Unlike stakeholder needs these carry
-        # job_type='product', a lifecycle category (Acquisition…Disposal), a role
-        # STRING (no StakeholderRole node), and no per-need confidence. They feed
-        # BOTH the ODI needs table (as "Product" rows) and the Product Life Cycle
-        # tab (attached to each job as `needs`).
-        pj_needs_by_job = defaultdict(list)   # (unit, jobname) -> [need dict]
+        # Same unit←product→group/commodity→job path as product_jobs_by_unit,
+        # extended to the jobs' scored error statements. Unlike stakeholder needs
+        # these carry job_type='product', a lifecycle category (Acquisition…
+        # Disposal), a role STRING (no StakeholderRole node), and no per-need
+        # confidence. They feed the ODI needs table (as "Product" rows). The
+        # Product Life Cycle tab instead shows each job's stakeholders (below).
         pj_seen_es = defaultdict(set)         # unit -> {es eid}  (dedup across products)
         pj_need_count = 0
         for rec in s.run(
@@ -392,17 +391,6 @@ def main() -> int:
             sat_rat = " ".join(
                 x for x in [rec["sat_rel"], rec["sat_time"], rec["sat_skill"], rec["sat_cost"]] if x
             )
-            # Compact need for the Product Life Cycle tab (under each job).
-            pj_needs_by_job[(unit, rec["job"])].append({
-                "stmt": stmt,
-                "plain": rec["plain"] or "",
-                "role": role,
-                "error_type": rec["error_type"] or "",
-                "imp": rec["imp"],
-                "sat": rec["sat"],
-                "opp": rec["opp"],
-                "opp_band": band(rec["opp"]),
-            })
             pj_need_count += 1
             # Full ODI-table row — only for units that already have a stakeholder
             # ODI file (so we never create a stakeholder-less "rated" unit). The
@@ -432,11 +420,38 @@ def main() -> int:
                     "rank": rec["rank"],
                     "lifecycle": cat,
                 })
-        # Attach each job's needs to the Product Life Cycle buckets.
-        for unit, stages in product_jobs_by_unit.items():
+        # ---- Product-job stakeholders (for the Product Life Cycle tab) --------
+        # Each product job is performed by one or more StakeholderRoles
+        # (StakeholderRole)-[:performs_product_job]->(ProductJob), carrying the
+        # buying-centre function (role) + a job-specific title. Keyed by job name.
+        pj_stk_by_job = defaultdict(list)
+        pj_stk_seen = defaultdict(set)
+        for rec in s.run(
+            "MATCH (c:Company {name:$owner})-[:has_product]->(p:Product)"
+            "-[:matches_vn_unit]->(:ValueNetworkUnit {value_network:$net}) "
+            "MATCH (p)-[:in_product_group|classified_as_unspsc]->()-[:has_product_job]->(pj:ProductJob) "
+            "MATCH (sr:StakeholderRole)-[:performs_product_job]->(pj) "
+            "RETURN DISTINCT pj.name AS job, sr.role AS role, sr.title AS title, sr.esco_code AS esco "
+            "ORDER BY sr.role, sr.title",
+            owner=OWNER_COMPANY, net=NETWORK,
+        ):
+            job = rec["job"]
+            key = (rec["role"], rec["title"])
+            if key in pj_stk_seen[job]:
+                continue
+            pj_stk_seen[job].add(key)
+            pj_stk_by_job[job].append({
+                "role": rec["role"] or "",
+                "role_label": ROLE_LABELS.get(rec["role"], rec["role"] or ""),
+                "title": rec["title"] or "",
+                "esco_code": rec["esco"] or "",
+            })
+        pj_stk_count = sum(len(v) for v in pj_stk_by_job.values())
+        # Attach each job's stakeholders to the Product Life Cycle buckets.
+        for _unit, stages in product_jobs_by_unit.items():
             for _stage, joblist in stages.items():
                 for job in joblist:
-                    job["needs"] = pj_needs_by_job.get((unit, job["name"]), [])
+                    job["stakeholders"] = pj_stk_by_job.get(job["name"], [])
 
         # ---- write per-unit ODI + index --------------------------------
         odi_reg = SlugRegistry()
@@ -555,7 +570,7 @@ def main() -> int:
 
     driver.close()
     print(f"\nrated units: {len(rows_by_unit)}   products matched: {len(products)}   "
-          f"product groups: {group_count}   product-job units: {len(product_jobs_by_unit)} ({pj_total} jobs, {pj_need_count} product needs)   "
+          f"product groups: {group_count}   product-job units: {len(product_jobs_by_unit)} ({pj_total} jobs, {pj_need_count} product needs, {pj_stk_count} job-stakeholders)   "
           f"default ODI unit: {default_slug} (top opp {best_top})")
     if notes:
         print("NOTES:")

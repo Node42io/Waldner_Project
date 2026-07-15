@@ -2,7 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { ArrowElbowDownRight, ArrowRight, ArrowsClockwise, ArrowSquareOut, CaretDown, ClipboardText, Cube, Envelope, Eye, Lightbulb, LinkedinLogo, ListChecks, LockSimple, Megaphone, Pulse, ShoppingCart, Star, Trash, TreeStructure, UsersThree, Wrench, X } from '@phosphor-icons/react'
+import { ArrowElbowDownRight, ArrowRight, ArrowsClockwise, ArrowSquareOut, CaretDown, ClipboardText, Cube, Envelope, Eye, Lightbulb, LinkedinLogo, LockSimple, Megaphone, Pulse, ShoppingCart, Star, Trash, TreeStructure, UsersThree, Wrench, X } from '@phosphor-icons/react'
 import type { Icon } from '@phosphor-icons/react'
 import {
   Accordion,
@@ -30,7 +30,7 @@ import {
   TreeView,
   WidgetCard,
 } from '@node42/ui-kit'
-import type { TreeNode, BadgeVariant } from '@node42/ui-kit'
+import type { TreeNode } from '@node42/ui-kit'
 import { ReportActions } from './ReportActions'
 import { ReportSidebar } from './ReportSidebar'
 import { slugify } from './sections'
@@ -354,11 +354,11 @@ function buildStakeholderGroups(stakeholders: UnitStakeholder[]) {
 // export carries no lifecycle tag, so the stage is assigned here per job. Any
 // job missing from the seed falls back to Usage so nothing is silently dropped.
 
-// One scored need (error statement) of a product job.
-type ProductJobNeed = { stmt: string; plain: string; role: string; error_type: string; imp: number; sat: number; opp: number; opp_band: string }
+// A stakeholder that performs a product job (StakeholderRole-[:performs_product_job]).
+type ProductJobStakeholder = { role: string; role_label: string; title: string; esco_code: string }
 // A real product job (Burleson L1) for a unit, bucketed by lifecycle stage, with
-// its scored error statements (needs) from the graph.
-type ProductJob = { name: string; statement: string; description: string; userGroup: string; frequency: string; kind: string; needs?: ProductJobNeed[] }
+// the stakeholders that perform it (from the graph).
+type ProductJob = { name: string; statement: string; description: string; userGroup: string; frequency: string; kind: string; stakeholders?: ProductJobStakeholder[] }
 const productJobsByUnit = productJobsByUnitData as Record<string, Partial<Record<LifecycleStage, ProductJob[]>>>
 
 const LIFECYCLE_STAGES: { key: LifecycleStage; label: string; icon: Icon; desc: string }[] = [
@@ -370,49 +370,55 @@ const LIFECYCLE_STAGES: { key: LifecycleStage; label: string; icon: Icon; desc: 
 ]
 
 
-// One selectable lifecycle-stage box in the acquisition → … → disposal chain.
-// Clicking it reveals that stage's jobs below (see JobLifeCycleView).
 // Job Life Cycle tab — the five stages as a clickable acquisition → … → disposal
-// chain. Selecting a stage reveals its jobs below, each with title, description
-// and the corresponding stakeholder.
-// Opportunity → badge colour, mirroring the ODI matrix bands.
-const oppBadge = (opp: number): BadgeVariant => (opp >= 12 ? 'error' : opp >= 10 ? 'warning' : 'neutral')
+// chain. Selecting a stage reveals its jobs below; each job expands to the
+// stakeholders that perform it.
 
-// One product job in the life-cycle tab. Clicking it expands its scored error
-// statements (needs), ranked by opportunity, each with its plain-language line.
+// One product job in the life-cycle tab. Clicking it expands the stakeholders
+// that perform it (role + title + ESCO code), grouped by buying-centre function.
 function ProductJobRow({ job }: { job: ProductJob }) {
   const [open, setOpen] = useState(false)
-  const needs = useMemo(() => [...(job.needs ?? [])].sort((a, b) => b.opp - a.opp), [job.needs])
-  const hasNeeds = needs.length > 0
+  const stakeholders = job.stakeholders ?? []
+  const hasStk = stakeholders.length > 0
+  // Order by the buying-centre role order, then title.
+  const ordered = useMemo(
+    () => [...stakeholders].sort((a, b) => (ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role)) || a.title.localeCompare(b.title)),
+    [stakeholders],
+  )
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-100)', width: '100%', minWidth: 0 }}>
       <div
-        onClick={() => hasNeeds && setOpen((v) => !v)}
-        style={{ cursor: hasNeeds ? 'pointer' : 'default', display: 'flex', alignItems: 'flex-start', gap: 'var(--space-100)', minWidth: 0 }}
+        onClick={() => hasStk && setOpen((v) => !v)}
+        style={{ cursor: hasStk ? 'pointer' : 'default', display: 'flex', alignItems: 'flex-start', gap: 'var(--space-100)', minWidth: 0 }}
       >
-        {hasNeeds ? (
+        {hasStk ? (
           <CaretDown size={14} weight="regular" style={{ flexShrink: 0, marginTop: 'var(--space-200)', transform: open ? 'none' : 'rotate(-90deg)', transition: 'transform 120ms ease', color: 'var(--icon-description)' }} />
         ) : <span style={{ width: 14, flexShrink: 0 }} />}
         <div style={{ minWidth: 0, flex: 1 }}>
           <JobEntry
             title={job.name}
             description={job.statement || job.description}
-            meta={hasNeeds ? `${needs.length} need${needs.length === 1 ? '' : 's'}` : (job.userGroup || '—')}
-            metaIcon={hasNeeds ? <ListChecks size={13} weight="regular" /> : <UsersThree size={13} weight="regular" />}
+            meta={hasStk ? `${stakeholders.length} stakeholder${stakeholders.length === 1 ? '' : 's'}` : (job.userGroup || '—')}
+            metaIcon={<UsersThree size={13} weight="regular" />}
           />
         </div>
       </div>
-      {open && hasNeeds ? (
+      {open && hasStk ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-150)', marginLeft: 'var(--space-500)', borderLeft: '2px solid var(--border-default-default)', paddingLeft: 'var(--space-300)' }}>
-          {needs.map((n, i) => (
-            <div key={i} style={{ display: 'flex', gap: 'var(--space-200)', alignItems: 'baseline', minWidth: 0 }}>
-              <Badge variant={oppBadge(n.opp)} size="xs">{n.opp.toFixed(1)}</Badge>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <Text variant="b3" as="p" style={{ margin: 0, color: 'var(--text-body)' }}>{n.stmt}</Text>
-                {n.plain ? <Text variant="b3" as="p" style={{ margin: '2px 0 0', color: 'var(--text-description)' }}>{n.plain}</Text> : null}
+          {ordered.map((sk, i) => {
+            const meta = ROLE_META[sk.role]
+            const Ic = meta?.icon ?? UsersThree
+            return (
+              <div key={i} style={{ display: 'flex', gap: 'var(--space-200)', alignItems: 'baseline', minWidth: 0 }}>
+                <Ic size={14} weight="regular" style={{ flexShrink: 0, color: 'var(--icon-description)', position: 'relative', top: 2 }} />
+                <div style={{ minWidth: 0, flex: 1, display: 'flex', alignItems: 'baseline', gap: 'var(--space-200)', flexWrap: 'wrap' }}>
+                  <Text variant="b3" weight="medium" as="span" style={{ color: 'var(--text-body)' }}>{sk.title}</Text>
+                  {sk.esco_code ? <span style={{ ...mono, fontSize: 'var(--font-size-b4)', color: 'var(--text-labels)' }}>ESCO {sk.esco_code}</span> : null}
+                  <Badge variant="neutral" size="xs">{sk.role_label || meta?.label || sk.role}</Badge>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       ) : null}
     </div>
