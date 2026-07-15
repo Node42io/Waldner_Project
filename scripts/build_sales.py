@@ -389,8 +389,11 @@ def build_company(lead, cj, enr, mgmt, key_persons, people_by_unit_role, allow_o
         "country": iso,
         "city": city,
         "employees": pick((rec or {}).get("employees"), to_int((e or {}).get("employees")), to_int(lead.get("headcount"))),
-        "revLowerUsd": pick((rec or {}).get("revLowerUsd"), to_int((e or {}).get("rev_lower_usd")), to_int(lead.get("est_rev_lower"))),
-        "revHigherUsd": pick((rec or {}).get("revHigherUsd"), to_int((e or {}).get("rev_higher_usd")), to_int(lead.get("est_rev_higher"))),
+        # A revenue upper bound of 0 is a wrong-entity/empty Crustdata match
+        # (e.g. Sanofi, Janssen) from ANY source — never a real figure; `or None`
+        # drops it so the UI falls back to the employees-derived band.
+        "revLowerUsd": pick(((rec or {}).get("revLowerUsd") or None) if ((rec or {}).get("revHigherUsd") or None) else None, (to_int((e or {}).get("rev_lower_usd")) or None) if (to_int((e or {}).get("rev_higher_usd")) or None) else None, (to_int(lead.get("est_rev_lower")) or None) if (to_int(lead.get("est_rev_higher")) or None) else None),
+        "revHigherUsd": pick((rec or {}).get("revHigherUsd") or None, to_int((e or {}).get("rev_higher_usd")) or None, to_int(lead.get("est_rev_higher")) or None),
         "buckets": buckets,
         # Real market segment from the graph (all validated accounts are Sterile
         # Fill-Finish). Drives the Customer List's segment filter — unlike the
