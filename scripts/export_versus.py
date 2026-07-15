@@ -32,6 +32,30 @@ WALDNER = "Hermann WALDNER GmbH & Co. KG"
 BRINOX = "BRINOX d.o.o."
 LEVEL_ORDER = {"L7": 0, "L6": 1, "L6a": 2, "L5": 3, "L4": 4, "L3": 5}
 
+# Canonical order of the L6 process stages so the value network reads down the
+# real manufacturing flow (raw material in → finished product out) rather than
+# alphabetically. The nine vertical process-flow steps come first, then the four
+# horizontal support functions (is_horizontal). Names must match the graph. Units
+# not listed here fall back to alphabetical within their level.
+STAGE_ORDER = [
+    # vertical — the process flow
+    "Raw Material Sourcing & Receiving",
+    "Material Testing & Release",
+    "Formulation & Compounding",
+    "Dosage Form Processing",
+    "Primary Packaging",
+    "Secondary Packaging & Labeling",
+    "Finished Product Testing & Batch Release",
+    "Warehousing & Distribution",
+    "Regulatory Affairs & Submissions",
+    # horizontal — support functions that span the flow
+    "Quality Assurance & Compliance",
+    "Equipment Maintenance & Calibration",
+    "Facilities, Utilities & Environment Control",
+    "Safety, Health & Environmental Management",
+]
+STAGE_RANK = {name: i for i, name in enumerate(STAGE_ORDER)}
+
 QUESTION = (
     "Who owns which part of the pharmaceutical manufacturing process — and where "
     "do Waldner and Brinox go head-to-head?"
@@ -61,10 +85,12 @@ def main() -> int:
         units = {}
         for r in s.run(
             "MATCH (u:ValueNetworkUnit {value_network:$vn}) "
-            "RETURN elementId(u) AS eid, u.name AS name, u.level AS level, u.cfj AS cfj",
+            "RETURN elementId(u) AS eid, u.name AS name, u.level AS level, u.cfj AS cfj, "
+            "u.is_horizontal AS is_horizontal",
             vn=VN,
         ):
-            units[r["eid"]] = {"name": r["name"], "level": r["level"], "cfj": r["cfj"]}
+            units[r["eid"]] = {"name": r["name"], "level": r["level"], "cfj": r["cfj"],
+                               "is_horizontal": bool(r["is_horizontal"])}
 
         # ---- hierarchy ------------------------------------------------
         parent_of = {}
@@ -145,7 +171,15 @@ def main() -> int:
             if prod["B"]:
                 node["brinoxProducts"] = sorted(prod["B"])
         kids = [c for c in children_of.get(eid, []) if c in keep]
-        kids.sort(key=lambda c: (LEVEL_ORDER.get(units[c]["level"], 9), units[c]["name"] or ""))
+        # Order by: level, then support-functions-after-process (is_horizontal),
+        # then the canonical process-flow rank (L6 stages), then name. This walks
+        # the value network down the real manufacturing flow instead of A→Z.
+        kids.sort(key=lambda c: (
+            LEVEL_ORDER.get(units[c]["level"], 9),
+            1 if units[c].get("is_horizontal") else 0,
+            STAGE_RANK.get(units[c]["name"], 999),
+            units[c]["name"] or "",
+        ))
         if kids:
             node["children"] = []
             for c in kids:
