@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Cube, ChartLineUp, GitDiff, SquaresFour } from '@phosphor-icons/react'
+import { Cube, ChartLineUp, GitDiff } from '@phosphor-icons/react'
 import { SidebarItem } from '@node42/ui-kit'
 
 // Shared navigation for the ODI-waldner app. Two top-level areas: Product
@@ -34,12 +34,6 @@ export function ReportSidebar() {
       <SidebarItem
         label="Value Network Coverage"
         icon={<GitDiff size={16} weight="regular" />}
-        selected={pathname === '/value-network-coverage'}
-        onClick={() => navigate('/value-network-coverage')}
-      />
-      <SidebarItem
-        label="Coverage (Cards)"
-        icon={<SquaresFour size={16} weight="regular" />}
         selected={pathname === '/value-network-coverage-cards'}
         onClick={() => navigate('/value-network-coverage-cards')}
       />
