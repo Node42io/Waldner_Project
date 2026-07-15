@@ -348,6 +348,92 @@ def main() -> int:
                 }
             )
 
+        # ---- Product-job needs (Burleson L1 product jobs → error statements) ----
+        # Same unit←product→group→job path as product_jobs_by_unit, extended to the
+        # jobs' scored error statements. Unlike stakeholder needs these carry
+        # job_type='product', a lifecycle category (Acquisition…Disposal), a role
+        # STRING (no StakeholderRole node), and no per-need confidence. They feed
+        # BOTH the ODI needs table (as "Product" rows) and the Product Life Cycle
+        # tab (attached to each job as `needs`).
+        pj_needs_by_job = defaultdict(list)   # (unit, jobname) -> [need dict]
+        pj_seen_es = defaultdict(set)         # unit -> {es eid}  (dedup across products)
+        pj_need_count = 0
+        for rec in s.run(
+            "MATCH (c:Company {name:$owner})-[:has_product]->(p:Product)"
+            "-[:matches_vn_unit]->(u:ValueNetworkUnit {value_network:$net}) "
+            "MATCH (p)-[:in_product_group]->(:ProductGroup)-[:has_product_job]->(pj:ProductJob)"
+            "-[:has_error]->(e:ErrorStatement) "
+            "WHERE e.opportunity_v2 IS NOT NULL "
+            "RETURN u.name AS unit, pj.name AS job, pj.category AS cat, elementId(e) AS eid, "
+            "e.need_statement AS stmt, e.error_statement AS estmt, "
+            "e.plain_language AS plain, e.plain_language_band AS plain_band, "
+            "e.role AS role, e.error_type AS error_type, e.job_type AS job_type, "
+            "e.importance_v2 AS imp, e.importance_rationale_v2 AS imp_rat, "
+            "e.satisfaction_v2 AS sat, "
+            "e.satisfaction_reliability_rationale_v2 AS sat_rel, "
+            "e.satisfaction_time_rationale_v2 AS sat_time, "
+            "e.satisfaction_skill_rationale_v2 AS sat_skill, "
+            "e.satisfaction_cost_rationale_v2 AS sat_cost, "
+            "e.opportunity_v2 AS opp, e.opportunity_rank_v2 AS rank "
+            "ORDER BY e.opportunity_v2 DESC",
+            owner=OWNER_COMPANY, net=NETWORK,
+        ):
+            unit, eid = rec["unit"], rec["eid"]
+            if eid in pj_seen_es[unit]:
+                continue
+            pj_seen_es[unit].add(eid)
+            cat = rec["cat"] or ""
+            role = rec["role"] or ""
+            stmt = rec["stmt"] or rec["estmt"] or ""
+            sat_rat = " ".join(
+                x for x in [rec["sat_rel"], rec["sat_time"], rec["sat_skill"], rec["sat_cost"]] if x
+            )
+            # Compact need for the Product Life Cycle tab (under each job).
+            pj_needs_by_job[(unit, rec["job"])].append({
+                "stmt": stmt,
+                "plain": rec["plain"] or "",
+                "role": role,
+                "error_type": rec["error_type"] or "",
+                "imp": rec["imp"],
+                "sat": rec["sat"],
+                "opp": rec["opp"],
+                "opp_band": band(rec["opp"]),
+            })
+            pj_need_count += 1
+            # Full ODI-table row — only for units that already have a stakeholder
+            # ODI file (so we never create a stakeholder-less "rated" unit). The
+            # lifecycle-tab needs above still cover the product-only units.
+            if unit in rows_by_unit:
+                rows_by_unit[unit].append({
+                    "stk": role or "Product",
+                    "role": "product",
+                    "role_label": cat or "Product job",
+                    "esco_code": "",
+                    "job_type": rec["job_type"] or "product",
+                    "source_job": rec["job"] or stmt,
+                    "stmt": stmt,
+                    "plain": rec["plain"] or "",
+                    "plain_band": rec["plain_band"] or "",
+                    "imp": rec["imp"],
+                    "imp_band": band(rec["imp"]),
+                    "imp_rat": rec["imp_rat"] or "",
+                    "imp_conf": None,
+                    "imp_conf_b": "",
+                    "sat": rec["sat"],
+                    "sat_band": band(rec["sat"]),
+                    "sat_rat": sat_rat,
+                    "sat_conf": None,
+                    "sat_conf_b": "",
+                    "opp": rec["opp"],
+                    "rank": rec["rank"],
+                    "lifecycle": cat,
+                })
+        # Attach each job's needs to the Product Life Cycle buckets.
+        for unit, stages in product_jobs_by_unit.items():
+            for _stage, joblist in stages.items():
+                for job in joblist:
+                    job["needs"] = pj_needs_by_job.get((unit, job["name"]), [])
+
         # ---- write per-unit ODI + index --------------------------------
         odi_reg = SlugRegistry()
         index = []
@@ -404,6 +490,12 @@ def main() -> int:
             }
             opps = [r["opp"] for r in rows if r["opp"] is not None]
             top = max(opps) if opps else None
+            # Default-unit pick is driven by STAKEHOLDER needs only, so a unit that
+            # merely carries many high-opportunity product-job needs doesn't hijack
+            # the landing unit.
+            stk_opps = [r["opp"] for r in rows if r["opp"] is not None and r["job_type"] != "product"]
+            stk_top = max(stk_opps) if stk_opps else None
+            product_needs = sum(1 for r in rows if r["job_type"] == "product")
             index.append(
                 {
                     "slug": slug,
@@ -413,6 +505,7 @@ def main() -> int:
                     "cfj": meta["cfj"],
                     "stakeholders": len(stakeholders),
                     "needs": len(rows),
+                    "product_needs": product_needs,
                     "top_opportunity": top,
                     "avg_opportunity": (sum(opps) / len(opps)) if opps else None,
                     "underserved": sum(
@@ -424,8 +517,8 @@ def main() -> int:
                     ),
                 }
             )
-            if best_top is None or (top is not None and top > best_top):
-                best_top, default_slug = top, slug
+            if best_top is None or (stk_top is not None and stk_top > best_top):
+                best_top, default_slug = stk_top, slug
                 default_obj = odi_obj
 
         index.sort(key=lambda e: -(e["top_opportunity"] if e["top_opportunity"] is not None else -1e9))
@@ -458,7 +551,7 @@ def main() -> int:
 
     driver.close()
     print(f"\nrated units: {len(rows_by_unit)}   products matched: {len(products)}   "
-          f"product groups: {group_count}   product-job units: {len(product_jobs_by_unit)} ({pj_total} jobs)   "
+          f"product groups: {group_count}   product-job units: {len(product_jobs_by_unit)} ({pj_total} jobs, {pj_need_count} product needs)   "
           f"default ODI unit: {default_slug} (top opp {best_top})")
     if notes:
         print("NOTES:")

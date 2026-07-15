@@ -29,12 +29,13 @@ export interface OdiRow {
   imp: number
   imp_band: string
   imp_rat: string
-  imp_conf: number
+  imp_conf: number | null
   imp_conf_b: string
   sat: number
   sat_band: string
   sat_rat: string
-  sat_conf: number
+  // Confidence is null for product-job needs (they carry no per-need confidence).
+  sat_conf: number | null
   sat_conf_b: string
   opp: number
   rank: number
@@ -42,6 +43,9 @@ export interface OdiRow {
   // opportunity needs. Empty for needs without a plain-language version.
   plain?: string
   plain_band?: string
+  // Set on product-job rows (job_type='product'): the product life-cycle stage
+  // (Acquisition · Preparation · Usage · Maintenance · Disposal).
+  lifecycle?: string
 }
 
 export interface OdiData {

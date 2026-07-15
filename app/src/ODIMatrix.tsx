@@ -60,7 +60,9 @@ function satVariant(band: string): BadgeVariant {
   return 'success'
 }
 
-const meanConf = (r: OdiRow) => Math.round((r.imp_conf + r.sat_conf) / 2)
+// Null for product-job needs (no per-need confidence).
+const meanConf = (r: OdiRow): number | null =>
+  r.imp_conf == null || r.sat_conf == null ? null : Math.round((r.imp_conf + r.sat_conf) / 2)
 
 // ODI innovation status from the importance vs. satisfaction gap: underserved
 // (importance outruns satisfaction), overserved (the reverse), or served.
@@ -91,7 +93,7 @@ const CSV_COLS: { header: string; get: (r: OdiRow) => string | number }[] = [
   { header: 'Importance band', get: (r) => r.imp_band },
   { header: 'Satisfaction', get: (r) => r.sat.toFixed(1) },
   { header: 'Satisfaction band', get: (r) => r.sat_band },
-  { header: 'Confidence', get: (r) => meanConf(r) },
+  { header: 'Confidence', get: (r) => meanConf(r) ?? '' },
 ]
 function downloadNeedsCsv(rows: OdiRow[], filename = 'odi-needs.csv') {
   const esc = (v: string | number) => { const s = String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
@@ -132,7 +134,7 @@ const ROLE_ORDER = ['job_executor', 'job_overseer', 'job_influencer', 'purchase_
 // (Importance / Satisfaction), each showing value · band · confidence + its
 // rationale text. The Opportunity / Status summary strip is intentionally
 // omitted for now.
-function MetricCard({ label, value, band, variant, conf, rat }: { label: string; value: number; band: string; variant: BadgeVariant; conf: number; rat: string }) {
+function MetricCard({ label, value, band, variant, conf, rat }: { label: string; value: number; band: string; variant: BadgeVariant; conf: number | null; rat: string }) {
   const caption = <FieldLabel>{label}</FieldLabel>
   return (
     <div style={{ borderRadius: 'var(--radius-sm)', padding: 'var(--space-400)', background: 'var(--surface-default-default)', display: 'flex', flexDirection: 'column', gap: 'var(--space-300)' }}>
@@ -140,11 +142,13 @@ function MetricCard({ label, value, band, variant, conf, rat }: { label: string;
         {caption}
         <span style={{ ...mono, fontSize: 'var(--font-size-b1)', color: 'var(--text-headings)' }}>{value.toFixed(1)}</span>
         <Badge variant={variant} size="xs">{band}</Badge>
-        <div style={{ marginLeft: 'auto' }}>
-          {/* Neutral (uncoloured) confidence: same shape as ConfidenceBadge but
-              no level colour — keeps the row cards from carrying too many hues. */}
-          <Badge variant="neutral" size="xs" icon={<Target weight="regular" aria-hidden />}>{conf}%</Badge>
-        </div>
+        {conf != null ? (
+          <div style={{ marginLeft: 'auto' }}>
+            {/* Neutral (uncoloured) confidence: same shape as ConfidenceBadge but
+                no level colour — keeps the row cards from carrying too many hues. */}
+            <Badge variant="neutral" size="xs" icon={<Target weight="regular" aria-hidden />}>{conf}%</Badge>
+          </div>
+        ) : null}
       </div>
       <Text variant="b2" style={{ color: 'var(--text-body)' }}>{rat}</Text>
     </div>
@@ -278,7 +282,7 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
 
   const rows = useMemo(() => {
     const val = (r: OdiRow): number | string => {
-      if (sort.key === 'conf') return meanConf(r)
+      if (sort.key === 'conf') return meanConf(r) ?? -1
       if (sort.key === 'status') return statusOf(r).order
       return (r as unknown as Record<SortKey, number | string>)[sort.key]
     }
@@ -608,7 +612,7 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
                         {r.job_type === 'product' ? (
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 'var(--space-100)' }}>
                             <Badge variant="color" size="xs">Product job</Badge>
-                            <Badge variant="neutral" size="xs">{STAGE_LABEL[JOB_STAGE[r.source_job] ?? 'usage']}</Badge>
+                            <Badge variant="neutral" size="xs">{r.lifecycle ?? STAGE_LABEL[JOB_STAGE[r.source_job] ?? 'usage']}</Badge>
                           </div>
                         ) : (
                           <Badge variant="neutral" size="xs">{r.job_type}</Badge>
@@ -620,8 +624,8 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
                       <Table.Cell style={topCell}>{stackCell(r.imp.toFixed(1), <Badge variant={impVariant(r.imp_band)} size="xs">{r.imp_band}</Badge>)}</Table.Cell>
                       {/* Satisfaction (number over band badge) */}
                       <Table.Cell style={topCell}>{stackCell(r.sat.toFixed(1), <Badge variant={satVariant(r.sat_band)} size="xs">{r.sat_band}</Badge>)}</Table.Cell>
-                      {/* Confidence — badge only */}
-                      <Table.Cell style={topCell}><ConfidenceBadge value={conf} size="xs" /></Table.Cell>
+                      {/* Confidence — badge only; product-job needs carry none. */}
+                      <Table.Cell style={topCell}>{conf == null ? <span style={{ ...mono, fontSize: 'var(--font-size-b3)', color: 'var(--text-labels)' }}>—</span> : <ConfidenceBadge value={conf} size="xs" />}</Table.Cell>
                     </Table.Row>
 
                     {/* Detail row — full-width rationale below; only the caret
