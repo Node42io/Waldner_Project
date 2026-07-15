@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Briefcase, CaretDown, DownloadSimple, Eye, ListChecks, Megaphone, Rows, ShoppingCart, SquaresFour, Target, Users, Wrench } from '@phosphor-icons/react'
+import { Briefcase, CaretDown, DownloadSimple, Eye, ListChecks, Megaphone, Rows, ShoppingCart, SquaresFour, Stack, Target, Users, Wrench } from '@phosphor-icons/react'
 import {
   BackButton,
   Badge,
@@ -26,6 +26,7 @@ import type { OdiRow, OdiData } from './odiNeedsData'
 import { JOB_STAGE, STAGE_LABEL } from './lifecycle'
 import { ReportActions } from './ReportActions'
 import { ReportSidebar } from './ReportSidebar'
+import { ConsolidatedView } from './ConsolidatedView'
 
 // ODI Matrix — ODI Needs table (Ulwick Importance × Satisfaction → Opportunity).
 // Rebuilt from the standalone mri_odi_needs export, reorganised onto the
@@ -88,7 +89,6 @@ const CSV_COLS: { header: string; get: (r: OdiRow) => string | number }[] = [
   { header: 'Job type', get: (r) => r.job_type },
   { header: 'Need', get: (r) => r.stmt },
   { header: 'Need (plain language)', get: (r) => r.plain ?? '' },
-  { header: 'Status', get: (r) => statusOf(r).label },
   { header: 'Importance', get: (r) => r.imp.toFixed(1) },
   { header: 'Importance band', get: (r) => r.imp_band },
   { header: 'Satisfaction', get: (r) => r.sat.toFixed(1) },
@@ -122,7 +122,6 @@ const columns: { key: SortKey; label: string; align?: 'left' | 'right'; info?: s
   { key: 'source_job', label: 'Job', sortable: false, info: 'The core functional job this desired outcome was derived from.' },
   { key: 'stmt', label: 'Need (desired outcome)', sortable: false, info: 'The desired outcome phrased as a measurable need (Ulwick outcome statement).' },
   { key: 'job_type', label: 'Job type', sortable: false, info: "The job's ODI type — core · emotional · status. Product jobs instead show “Product job” with their product life-cycle stage (Acquisition → Preparation → Usage → Maintenance → Disposal)." },
-  { key: 'status', label: 'Status', info: 'ODI status from the importance − satisfaction gap: underserved · served · overserved. Product jobs show lifecycle instead.' },
   { key: 'imp', label: 'Imp.', info: 'Importance — how important this desired outcome is to the stakeholder, rated 0–10 (Ulwick importance).' },
   { key: 'sat', label: 'Sat.', info: 'Satisfaction — how well the outcome is met today, rated 0–10 (Ulwick satisfaction).' },
   { key: 'conf', label: 'Conf.', info: 'Confidence — mean of the importance and satisfaction confidences, calibrated to the Sherman-Kent scale.' },
@@ -173,15 +172,16 @@ function RationalePanel({ r }: { r: OdiRow }) {
 }
 
 // Table / Graph view switch.
-function ViewToggle({ value, onChange }: { value: 'table' | 'graph'; onChange: (v: 'table' | 'graph') => void }) {
+function ViewToggle({ value, onChange }: { value: 'table' | 'graph' | 'clusters'; onChange: (v: 'table' | 'graph' | 'clusters') => void }) {
   return (
     <Toggle
       aria-label="View mode"
       value={value}
-      onChange={(v) => onChange(v as 'table' | 'graph')}
+      onChange={(v) => onChange(v as 'table' | 'graph' | 'clusters')}
       options={[
         { value: 'table', icon: <Rows size={16} weight="regular" />, label: 'Table' },
         { value: 'graph', icon: <SquaresFour size={16} weight="regular" />, label: 'Graph' },
+        { value: 'clusters', icon: <Stack size={16} weight="regular" />, label: 'Clusters' },
       ]}
     />
   )
@@ -205,7 +205,7 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
   const toggleJob = (v: string) => setJob((p) => toggleIn(p, v))
   const toggleJobType = (v: string) => setJobType((p) => toggleIn(p, v))
   const [query, setQuery] = useState<string>('')
-  const [view, setView] = useState<'table' | 'graph'>(() => (searchParams.get('view') === 'graph' ? 'graph' : 'table'))
+  const [view, setView] = useState<'table' | 'graph' | 'clusters'>(() => (searchParams.get('view') === 'graph' ? 'graph' : 'table'))
   // Importance × satisfaction rectangle deep-link (from the ODI viz playground):
   // ?impMin&impMax&satMin&satMax filter the table to a concentration region.
   const [range, setRange] = useState<{ impMin: number; impMax: number; satMin: number; satMax: number } | null>(() => {
@@ -434,7 +434,7 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
           </div>
 
           <div style={{ display: 'flex', gap: 'var(--space-400)', alignItems: 'center', flexWrap: 'wrap' }}>
-            {view !== 'graph' ? (
+            {view === 'table' ? (
               <Checkbox
                 checked={expandAll}
                 onChange={() => setExpandAll((v) => !v)}
@@ -538,6 +538,8 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
             ]}
           />
           </div>
+        ) : view === 'clusters' ? (
+          <ConsolidatedView slug={data.slug ?? searchParams.get('unit') ?? ''} />
         ) : (
         /* Table */
         <div className="odi-tablescroll" style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
@@ -551,7 +553,6 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
               <col style={{ width: 156 }} />{/* job */}
               <col />{/* need — takes the remaining width */}
               <col style={{ width: 128 }} />{/* product life cycle */}
-              <col style={{ width: 116 }} />{/* status */}
               <col style={{ width: 96 }} />{/* importance */}
               <col style={{ width: 96 }} />{/* satisfaction */}
               <col style={{ width: 92 }} />{/* confidence */}
@@ -583,7 +584,6 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
                 const id = rowId.get(r)!
                 const isOpen = expandAll || open.has(id)
                 const conf = meanConf(r)
-                const s = statusOf(r)
                 const topCell: CSSProperties = { verticalAlign: 'top' }
                 return (
                   <Fragment key={id}>
@@ -618,8 +618,6 @@ export function ODIMatrixView({ initialStk, data = odiNeeds }: { initialStk?: st
                           <Badge variant="neutral" size="xs">{r.job_type}</Badge>
                         )}
                       </Table.Cell>
-                      {/* Status */}
-                      <Table.Cell style={topCell}><Badge variant={s.variant} size="xs">{s.label}</Badge></Table.Cell>
                       {/* Importance (number over band badge) */}
                       <Table.Cell style={topCell}>{stackCell(r.imp.toFixed(1), <Badge variant={impVariant(r.imp_band)} size="xs">{r.imp_band}</Badge>)}</Table.Cell>
                       {/* Satisfaction (number over band badge) */}

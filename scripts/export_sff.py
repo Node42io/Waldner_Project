@@ -46,6 +46,18 @@ NAICS = "325412"
 MARKET_LABEL = "Sterile Fill-Finish"
 OWNER_COMPANY = "Hermann WALDNER GmbH & Co. KG"
 
+# Food-only Waldner products mis-matched into the pharma VN (Waldner's DOSOMAT is
+# a dual-use food+pharma cup-filling line; these configs are dairy/meat/dessert/
+# edible-oil only). Excluded so the pharma "Your Products" list isn't polluted.
+EXCLUDE_PRODUCTS = {
+    "DOSOMAT 10",
+    "DOSOMAT Becherfüll- und Verschließmaschine für Pasteten und Wurstwaren",
+    "DOSOMAT Becherfüller",
+    "DOSOMAT Dairy Rotary Machine",
+    "Topping Filler (Topping-Dosiersystem)",
+    "Ölfüller (Oil Filler Dosing System)",
+}
+
 LEVEL_ORDER = {"L7": 0, "L6": 1, "L6a": 2, "L5": 3, "L4": 4, "L3": 5}
 LEVELS = ["L7", "L6", "L6a", "L5", "L4", "L3"]
 ROLE_LABELS = {
@@ -218,7 +230,7 @@ def main() -> int:
             owner=OWNER_COMPANY, net=NETWORK,
         ):
             uid = id_by_name.get(rec["unit"])
-            if uid is None:
+            if uid is None or rec["product"] in EXCLUDE_PRODUCTS:
                 continue
             prod_units[rec["product"]].add(uid)
             if rec["ptype"] and rec["product"] not in prod_note:
@@ -474,6 +486,7 @@ def main() -> int:
             )
             job_types = {r["source_job"]: r["job_type"] for r in rows}
             odi_obj = {
+                "slug": slug,
                 "unit": {"name": uname, "level": meta["level"], "cfj": meta["cfj"]},
                 "meta": {
                     "method": "Ulwick ODI (Importance × Satisfaction → Opportunity), needs scoring v2",

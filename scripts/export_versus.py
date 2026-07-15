@@ -56,6 +56,26 @@ STAGE_ORDER = [
 ]
 STAGE_RANK = {name: i for i, name in enumerate(STAGE_ORDER)}
 
+# Food-only Waldner products that were mis-matched into the pharmaceutical value
+# network (Waldner's DOSOMAT is a dual-use food+pharma cup-filling line; these
+# specific configs are described for dairy / meat / dessert / edible-oil only).
+# Excluded from the coverage so the pharma VN isn't polluted. The generic DOSOMAT
+# 12–80 line stays (genuinely dual-use). Edit this set to adjust.
+EXCLUDE_PRODUCTS = {
+    "DOSOMAT 10",
+    "DOSOMAT Becherfüll- und Verschließmaschine für Pasteten und Wurstwaren",
+    "DOSOMAT Becherfüller",
+    "DOSOMAT Dairy Rotary Machine",
+    "Topping Filler (Topping-Dosiersystem)",
+    "Ölfüller (Oil Filler Dosing System)",
+}
+
+# Show the FULL value network down to the equipment level (L5), not just the
+# product-matched units — so every unit shows its coverage (products / sub-level
+# dot / no-products glyph). Deeper granular units (L4/L3) are kept only where a
+# product actually matches them.
+KEEP_LEVELS = {"L7", "L6", "L6a", "L5"}
+
 QUESTION = (
     "Who owns which part of the pharmaceutical manufacturing process — and where "
     "do Waldner and Brinox go head-to-head?"
@@ -114,8 +134,9 @@ def main() -> int:
             for r in s.run(
                 "MATCH (c:Company {name:$co})-[:has_product]->(p:Product)"
                 "-[:matches_vn_unit]->(u:ValueNetworkUnit {value_network:$vn}) "
+                "WHERE NOT p.name IN $exclude "
                 "RETURN elementId(u) AS eid, p.name AS product",
-                co=co, vn=VN,
+                co=co, vn=VN, exclude=list(EXCLUDE_PRODUCTS),
             ):
                 matched[r["eid"]].add(tag)
                 products[r["eid"]][tag].add(r["product"])
@@ -128,8 +149,12 @@ def main() -> int:
             return None
         return "WB" if len(t) == 2 else ("W" if "W" in t else "B")
 
-    # ---- prune: keep matched units + all their ancestors --------------
+    # ---- keep the FULL VN down to L5, plus any matched deeper (L4/L3) units
+    # and every unit's ancestor chain (so the tree stays connected).
     keep = set()
+    for eid, u in units.items():
+        if u["level"] in KEEP_LEVELS:
+            keep.add(eid)
     for eid in matched:
         cur = eid
         while cur is not None and cur not in keep:
